@@ -5,7 +5,6 @@ import hashlib
 import datetime
 import shutil
 import traceback
-
 from pathlib import Path
 from flask import Flask, request, jsonify
 from PIL import Image
@@ -13,108 +12,86 @@ import piexif
 
 app = Flask(__name__)
 
-# =========================
-# PATH
-# =========================
-JSON_FILE = Path('photos.json')
+JSON_FILE = Path("photos.json")
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
-# =========================
+# ======================
 # LOG SYSTEM
-# =========================
+# ======================
 log_buffer = []
+log_cursor = 0
 
 def log(msg):
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     line = f"[{ts}] {msg}"
     print(line, flush=True)
     log_buffer.append(line)
-    if len(log_buffer) > 500:
+
+    if len(log_buffer) > 1000:
         log_buffer.pop(0)
 
-# =========================
+# ======================
 # LOAD DB
-# =========================
+# ======================
 if JSON_FILE.exists():
-    try:
-        photos_db = json.loads(JSON_FILE.read_text(encoding='utf-8'))
-    except Exception:
-        log("❌ photos.json load failed")
-        photos_db = {}
+    photos_db = json.loads(JSON_FILE.read_text("utf-8"))
 else:
     photos_db = {}
 
-# =========================
+# ======================
 # FRONTEND
-# =========================
+# ======================
 UPLOAD_PAGE = """
 <!doctype html>
-<html lang="zh">
+<html>
 <head>
 <meta charset="utf-8">
 <title>Uploader</title>
-
 <style>
 body { font-family: sans-serif; max-width: 900px; margin: 30px auto; }
-button { padding: 10px 15px; margin-right: 10px; margin-top: 5px; }
-
-#logs {
-    margin-top: 20px;
-    background: #111;
-    color: #0f0;
-    padding: 10px;
-    height: 300px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    font-size: 12px;
-}
+#logs { background:#111;color:#0f0;height:300px;overflow:auto;padding:10px;white-space:pre-wrap; }
+button { margin-right:10px;padding:8px 12px; }
 </style>
 </head>
-
 <body>
 
-<h2>📷 Photo Upload</h2>
+<h2>Photo Upload</h2>
 
 <input type="file" id="file" multiple>
-
 <br><br>
 
 <button onclick="upload()">Upload</button>
-<button onclick="toggleLogs()">🟢 Pause Logs</button>
-<button onclick="stopServer()">🛑 Stop Server</button>
+<button onclick="toggleLogs()">Pause Logs</button>
+<button onclick="stopServer()">STOP SERVER</button>
 
 <pre id="logs"></pre>
 
 <script>
 
 let timer = null;
-let enabled = true;
 
-// =====================
-// upload
-// =====================
 async function upload() {
     const files = document.getElementById('file').files;
 
-    for (let i = 0; i < files.length; i++) {
+    for (let f of files) {
         const fd = new FormData();
-        fd.append('image', files[i]);
+        fd.append('image', f);
 
-        await fetch('/upload', {
-            method: 'POST',
-            body: fd
-        });
+        await fetch('/upload', { method: 'POST', body: fd });
     }
 }
 
-// =====================
-// logs
-// =====================
+// ===== logs (diff mode) =====
 async function fetchLogs() {
     const r = await fetch('/logs');
     const t = await r.text();
-    document.getElementById('logs').textContent = t;
+
+    if (t.trim().length === 0) return;
+
+    const el = document.getElementById('logs');
+    el.textContent += t + "\n";
+    el.scrollTop = el.scrollHeight;
 }
 
 function startLogs() {
@@ -123,40 +100,24 @@ function startLogs() {
 }
 
 function stopLogs() {
-    if (timer) {
-        clearInterval(timer);
-        timer = null;
-    }
+    clearInterval(timer);
+    timer = null;
 }
 
 function toggleLogs() {
-    enabled = !enabled;
-
-    if (enabled) {
-        startLogs();
-        document.querySelector("button[onclick='toggleLogs()']").innerText = "🟢 Pause Logs";
-    } else {
+    if (timer) {
         stopLogs();
-        document.querySelector("button[onclick='toggleLogs()']").innerText = "🔴 Resume Logs";
+    } else {
+        startLogs();
     }
 }
 
-// =====================
-// STOP SERVER
-// =====================
+// ===== shutdown =====
 async function stopServer() {
-    const ok = confirm("确定要关闭服务器吗？");
-
-    if (!ok) return;
-
-    await fetch('/shutdown', {
-        method: 'POST'
-    });
-
-    alert("服务器已关闭");
+    await fetch('/shutdown', { method: 'POST' });
+    alert("Server stopped");
 }
 
-// init
 startLogs();
 
 </script>
@@ -165,69 +126,56 @@ startLogs();
 </html>
 """
 
-# =========================
-# ROUTES
-# =========================
-@app.route('/')
+@app.route("/")
 def index():
     return UPLOAD_PAGE
 
-@app.route('/logs')
+# ======================
+# LOG API (diff)
+# ======================
+@app.route("/logs")
 def logs():
-    return "\n".join(log_buffer)
+    global log_cursor
 
-# =========================
+    new_logs = log_buffer[log_cursor:]
+    log_cursor = len(log_buffer)
+
+    return "\n".join(new_logs)
+
+# ======================
 # EXIF
-# =========================
-def get_exif_date(image_bytes):
+# ======================
+def get_exif_date(data):
     try:
-        exif = piexif.load(image_bytes)
-
-        for ifd in ['Exif', '0th']:
+        exif = piexif.load(data)
+        for ifd in ["Exif", "0th"]:
             for tag in [36867, 36868, 306]:
                 if tag in exif.get(ifd, {}):
                     dt = exif[ifd][tag].decode()
                     return datetime.datetime.strptime(dt, "%Y:%m:%d %H:%M:%S")
-
-    except Exception:
-        log("❌ EXIF parse failed")
+    except:
+        log("EXIF parse failed")
         print(traceback.format_exc())
-
     return None
 
-# =========================
+# ======================
 # UPLOAD
-# =========================
-@app.route('/upload', methods=['POST'])
+# ======================
+@app.route("/upload", methods=["POST"])
 def upload():
     try:
-        if 'image' not in request.files:
-            log("❌ no file")
-            return jsonify({"status": "error"}), 400
-
-        file = request.files['image']
-
-        log(f"📥 upload start: {file.filename}")
+        file = request.files["image"]
+        log(f"UPLOAD: {file.filename}")
 
         data = file.read()
-
         sha = hashlib.sha256(data).hexdigest()
-        log(f"🔐 sha256: {sha[:10]}...")
 
         ext = os.path.splitext(file.filename)[1].lower()
-
         if ext not in ALLOWED_EXTENSIONS:
-            log("❌ unsupported type")
-            return jsonify({"status": "error"}), 400
+            log("INVALID FILE")
+            return jsonify({"error": "bad ext"}), 400
 
-        dt = get_exif_date(data)
-
-        if dt:
-            log("📅 time source: EXIF")
-        else:
-            dt = datetime.datetime.utcnow()
-            log("📅 time source: fallback UTC")
-
+        dt = get_exif_date(data) or datetime.datetime.utcnow()
         year = str(dt.year)
 
         photo_path = Path(f"photos/{year}/{sha}{ext}")
@@ -236,61 +184,50 @@ def upload():
         photo_path.parent.mkdir(parents=True, exist_ok=True)
         thumb_path.parent.mkdir(parents=True, exist_ok=True)
 
-        log(f"💾 saving -> {photo_path}")
-
-        with open(photo_path, 'wb') as f:
+        with open(photo_path, "wb") as f:
             f.write(data)
 
         try:
             img = Image.open(io.BytesIO(data))
             img.thumbnail((400, 400))
             img.save(thumb_path)
-            log("🖼 thumbnail OK")
-        except Exception:
-            log("⚠ thumbnail failed fallback copy")
+        except:
             shutil.copy(photo_path, thumb_path)
 
         photos_db[sha] = {
             "file": file.filename,
-            "path": str(photo_path),
-            "thumb": str(thumb_path),
-            "time": dt.isoformat()
+            "path": str(photo_path)
         }
 
-        JSON_FILE.write_text(
-            json.dumps(photos_db, indent=2, ensure_ascii=False),
-            encoding='utf-8'
-        )
+        JSON_FILE.write_text(json.dumps(photos_db, indent=2), encoding="utf-8")
 
-        log(f"✅ done: {file.filename}")
+        log("DONE")
 
-        return jsonify({"status": "ok", "sha256": sha})
+        return jsonify({"ok": True})
 
     except Exception as e:
-        log("❌ upload error")
+        log("ERROR")
         print(traceback.format_exc())
-        return jsonify({"status": "error"}), 500
+        return jsonify({"error": str(e)}), 500
 
-# =========================
-# SHUTDOWN (新增)
-# =========================
-@app.route('/shutdown', methods=['POST'])
+# ======================
+# SHUTDOWN (关键修复)
+# ======================
+@app.route("/shutdown", methods=["POST"])
 def shutdown():
-    log("🛑 shutdown requested from frontend")
+    log("SHUTDOWN REQUEST")
 
-    func = request.environ.get('werkzeug.server.shutdown')
+    # kill ngrok if exists
+    os.system("pkill ngrok || true")
+    os.system("pkill -f upload_server.py || true")
 
-    if func is None:
-        log("⚠ fallback os._exit(0)")
-        os._exit(0)
+    func = request.environ.get("werkzeug.server.shutdown")
+    if func:
+        func()
 
-    func()
+    log("SERVER STOPPED")
+    return "ok"
 
-    return jsonify({"status": "shutting down"})
-
-# =========================
-# MAIN
-# =========================
-if __name__ == '__main__':
-    log("🚀 server started")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+if __name__ == "__main__":
+    log("SERVER START")
+    app.run(host="0.0.0.0", port=5000, debug=False)
