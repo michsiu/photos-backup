@@ -240,20 +240,21 @@ def logs():
 # =========================
 # SHUTDOWN (FIXED)
 # =========================
+import threading
+import time
+
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     log("SHUTDOWN TRIGGERED")
 
-    try:
-        pid = os.getpid()
-        log(f"KILL PID {pid}")
-        os.kill(pid, signal.SIGTERM)
-    except Exception as e:
-        log(f"SIGTERM FAIL {e}")
+    def killer():
+        time.sleep(0.3)  # 给 HTTP response 时间返回
+        log("KILL PROCESS NOW")
         os._exit(0)
 
-    return jsonify({"ok": True})
+    threading.Thread(target=killer).start()
 
+    return jsonify({"ok": True})
 # =========================
 # MAIN
 # =========================
