@@ -46,29 +46,48 @@ jobs:
 
       - name: Start ngrok
         run: |
-          ./ngrok http 5000 > ngrok.log 2>&1 &
+          ./ngrok http 5000 --log=stdout > ngrok.log 2>&1 &
 
-      - name: Get ngrok url
+      - name: Print ngrok URL
         run: |
-          echo "Waiting for ngrok..."
+          echo "Waiting for ngrok tunnel..."
+
+          URL=""
 
           for i in {1..60}; do
 
-            URL=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
+            URL=$(curl -s http://127.0.0.1:4040/api/tunnels \
+              | grep -o 'https://[^"]*' \
+              | head -n 1)
 
             if [ ! -z "$URL" ]; then
-              echo ""
-              echo "=================================="
-              echo "UPLOAD URL:"
-              echo "$URL"
-              echo "=================================="
-              echo ""
               break
             fi
 
+            echo "Attempt $i/60..."
             sleep 1
           done
 
-      - name: Keep alive
+          if [ -z "$URL" ]; then
+            echo "Failed to get ngrok URL"
+            echo ""
+            echo "========== NGROK LOG =========="
+            cat ngrok.log || true
+            echo "================================"
+            exit 1
+          fi
+
+          echo ""
+          echo "=================================================="
+          echo " PHOTO UPLOAD SERVER READY"
+          echo ""
+          echo " Upload URL:"
+          echo " $URL"
+          echo ""
+          echo "=================================================="
+          echo ""
+
+      - name: Keep workflow alive
         run: |
+          echo "Workflow running..."
           tail -f /dev/null
