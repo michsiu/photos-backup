@@ -39,17 +39,40 @@ jobs:
           # 启动 ngrok，暴露 5000 端口
           ./ngrok http 5000 --log=stdout > ngrok.log 2>&1 &
           
-          # 等待 ngrok API 就绪（最多等30秒）
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:4040/api/tunnels > /dev/null 2>&1; then
-              break
+          # 等待 ngrok API 就绪并获取 URL（最多等60秒）
+          NGROK_URL=""
+          for i in {1..60}; do
+            # 检查 API 是否可访问
+            if curl -s http://127.0.0.1:4040/api/tunnels > /tmp/ngrok_response 2>&1; then
+              # 尝试解析 URL
+              NGROK_URL=$(python -c "
+import json
+with open('/tmp/ngrok_response') as f:
+    data = json.load(f)
+tunnels = data.get('tunnels', [])
+if tunnels:
+    print(tunnels[0].get('public_url', ''))
+" 2>/dev/null)
+              if [ ! -z "$NGROK_URL" ]; then
+                break
+              fi
             fi
-            echo "Waiting for ngrok to start..."
+            echo "Waiting for ngrok tunnel... (attempt $i/60)"
+            # 打印 ngrok 日志帮助排查（可选）
+            if [ $i -eq 10 ]; then
+              echo "--- ngrok log (last 5 lines) ---"
+              tail -5 ngrok.log || true
+              echo "--- end ---"
+            fi
             sleep 1
           done
           
-          # 从 ngrok 本地 API 获取公网 URL
-          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | python -c "import sys,json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])")
+          if [ -z "$NGROK_URL" ]; then
+            echo "Failed to get ngrok URL"
+            cat ngrok.log
+            exit 1
+          fi
+          
           echo "=============================================="
           echo "  Upload page available at: $NGROK_URL"
           echo "  Open this URL in your browser to upload."
