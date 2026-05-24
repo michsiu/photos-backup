@@ -13,6 +13,9 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 INCOMING_DIR = BASE_DIR / "incoming"
 INCOMING_DIR.mkdir(exist_ok=True)
+repo = "photos-backup"
+user = "michsiu"
+branch = "main"
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
 ZIP_EXTENSION = '.zip'
@@ -362,7 +365,7 @@ def shutdown():
     
 
 # 在 gallery 路由的 Python 代码顶部，已经有这行（如果没有就加上）
-raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}"
+raw_base = f"https://raw.githubusercontent.com/{user}/{repo}/{branch}"
 @app.route('/gallery')
 def gallery():
     # 直接读 photos.json，把数据嵌入页面
@@ -376,43 +379,162 @@ def gallery():
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Photo Gallery</title>
-  <style>
-    * {{ margin:0; padding:0; box-sizing:border-box; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-           background: #f4f6f9; color: #1e293b; padding: 20px; }}
-    .container {{ max-width: 1200px; margin: 0 auto; }}
-    h1 {{ font-size: 2rem; margin-bottom: 20px; text-align: center; }}
-    .controls {{ display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: center; }}
-    .controls input, .controls select {{ padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; }}
-    .controls input {{ flex: 1; min-width: 200px; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }}
-    .card {{ background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); transition: transform 0.2s; }}
-    .card:hover {{ transform: translateY(-4px); }}
-    .card img {{ width: 100%; height: 180px; object-fit: cover; display: block; }}
-    .card-info {{ padding: 10px; font-size: 0.85rem; }}
-    .card-info .name {{ font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-    .card-info .date {{ color: #64748b; font-size: 0.8rem; margin-top: 4px; }}
-    .pagination {{ display: flex; justify-content: center; align-items: center; gap: 8px; margin: 24px 0; flex-wrap: wrap; }}
-    .pagination button, .pagination span {{ padding: 6px 12px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer; }}
-    .pagination button:disabled {{ opacity: 0.5; cursor: default; }}
-    .pagination .active {{ background: #4f46e5; color: white; border-color: #4f46e5; }}
-    #sentinel {{ height: 1px; }}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Photo Gallery</title>
+
+<style>
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:#f4f6f9;
+  color:#1e293b;
+}
+
+.container{
+  max-width:1400px;
+  margin:0 auto;
+  padding:20px;
+}
+
+h1{
+  text-align:center;
+  font-size:2rem;
+  margin-bottom:20px;
+}
+
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-bottom:20px;
+}
+
+.controls input,
+.controls select{
+  padding:10px 14px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:white;
+  font-size:0.95rem;
+}
+
+.controls input{
+  flex:1;
+  min-width:220px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:16px;
+}
+
+.card{
+  background:white;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 4px 14px rgba(0,0,0,0.06);
+  transition:transform .2s ease;
+}
+
+.card:hover{
+  transform:translateY(-4px);
+}
+
+.card img{
+  width:100%;
+  height:220px;
+  object-fit:cover;
+  display:block;
+  background:#e2e8f0;
+}
+
+.card-info{
+  padding:12px;
+}
+
+.name{
+  font-weight:600;
+  font-size:.9rem;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.date{
+  margin-top:6px;
+  color:#64748b;
+  font-size:.8rem;
+}
+
+.stats{
+  margin-bottom:16px;
+  color:#64748b;
+  font-size:.9rem;
+}
+
+.loading{
+  text-align:center;
+  padding:30px;
+  color:#64748b;
+  font-size:.9rem;
+}
+
+.empty{
+  text-align:center;
+  padding:60px 20px;
+  color:#64748b;
+}
+
+#sentinel{
+  height:1px;
+}
+
+@media (max-width:640px){
+
+  .container{
+    padding:14px;
+  }
+
+  .grid{
+    grid-template-columns:repeat(2,1fr);
+    gap:12px;
+  }
+
+  .card img{
+    height:180px;
+  }
+
+}
+</style>
 </head>
+
 <body>
+
 <div class="container">
+
   <h1>📷 Photo Gallery</h1>
-  
+
   <div class="controls">
-    <input type="text" id="search" placeholder="🔍 搜索文件名..." oninput="resetAndRender()">
-    <select id="yearFilter" onchange="resetAndRender()">
+    <input
+      type="text"
+      id="search"
+      placeholder="🔍 搜索文件名..."
+    >
+
+    <select id="yearFilter">
       <option value="">所有年份</option>
     </select>
-    <select id="sortBy" onchange="resetAndRender()">
-      <option value="date-desc" selected>时间 ↓ (默认)</option>
+
+    <select id="sortBy">
+      <option value="date-desc" selected>时间 ↓</option>
       <option value="date-asc">时间 ↑</option>
       <option value="name-asc">名称 A-Z</option>
       <option value="name-desc">名称 Z-A</option>
@@ -420,158 +542,332 @@ def gallery():
     </select>
   </div>
 
+  <div class="stats" id="stats"></div>
+
   <div class="grid" id="grid"></div>
-  <div class="pagination" id="pagination"></div>
+
+  <div class="loading" id="loading">
+    正在加载...
+  </div>
+
   <div id="sentinel"></div>
+
 </div>
+
 <script>
-  const RAW_BASE = "{raw_base}";
-  
 
+const RAW_BASE = "{raw_base}";
+const ALL_PHOTOS_DATA = {photos_json};
 
-  // 服务端直接注入数据，无需额外请求
-  var ALL_PHOTOS_DATA = {photos_json};
+const PER_LOAD = 20;
 
-  const PER_PAGE = 20;
-  let allPhotos = [];
-  let filteredPhotos = [];
-  let currentPage = 1;
-  let totalPages = 1;
+let allPhotos = [];
+let filteredPhotos = [];
 
-  // 将 object 转成数组，并保留 sha256
-  function initPhotos() {{
-    const raw = ALL_PHOTOS_DATA;
-    allPhotos = Object.keys(raw).map(sha => {{
-      const item = raw[sha];
-      item.sha256 = sha;
-      return item;
-    }});
-    // 填充年份下拉
-    const years = [...new Set(allPhotos.map(p => p.year))].sort();
-    const yearSelect = document.getElementById('yearFilter');
-    years.forEach(y => {{
-      const opt = document.createElement('option');
-      opt.value = y;
-      opt.textContent = y;
-      yearSelect.appendChild(opt);
-    }});
-    applyFilters();
-  }}
+let renderedCount = 0;
+let loading = false;
 
-  function applyFilters() {{
-    const search = document.getElementById('search').value.toLowerCase();
-    const year = document.getElementById('yearFilter').value;
-    const sort = document.getElementById('sortBy').value;
+const grid = document.getElementById('grid');
+const loadingEl = document.getElementById('loading');
 
-    filteredPhotos = allPhotos.filter(p => {{
-      const matchName = !search || p.fileName.toLowerCase().includes(search);
-      const matchYear = !year || p.year === year;
-      return matchName && matchYear;
-    }});
+function initPhotos(){
 
-    switch(sort) {{
-      case 'date-asc':
-        filteredPhotos.sort((a,b) => a.date.localeCompare(b.date));
-        break;
-      case 'date-desc':
-        filteredPhotos.sort((a,b) => b.date.localeCompare(a.date));
-        break;
-      case 'name-asc':
-        filteredPhotos.sort((a,b) => a.fileName.localeCompare(b.fileName));
-        break;
-      case 'name-desc':
-        filteredPhotos.sort((a,b) => b.fileName.localeCompare(a.fileName));
-        break;
-      case 'random':
-        for (let i = filteredPhotos.length - 1; i > 0; i--) {{
-          const j = Math.floor(Math.random() * (i + 1));
-          [filteredPhotos[i], filteredPhotos[j]] = [filteredPhotos[j], filteredPhotos[i]];
-        }}
-        break;
-    }}
+  const raw = ALL_PHOTOS_DATA;
 
-    totalPages = Math.ceil(filteredPhotos.length / PER_PAGE);
-    currentPage = 1;
-    renderPage();
-    renderPagination();
-  }}
+  allPhotos = Object.keys(raw).map(sha => {
 
-  function resetAndRender() {{ applyFilters(); }}
+    const item = raw[sha];
 
-  function getPagePhotos(page) {{
-    const start = (page - 1) * PER_PAGE;
-    return filteredPhotos.slice(start, start + PER_PAGE);
-  }}
+    item.sha256 = sha;
 
-  function renderPage() {{
-    const grid = document.getElementById('grid');
-    grid.innerHTML = '';
-    const pagePhotos = getPagePhotos(currentPage);
-    pagePhotos.forEach(p => {{
-      const card = document.createElement('div');
-      card.className = 'card';
-      const imgUrl = RAW_BASE + '/' + p.url;
-      const thumbUrl = RAW_BASE + '/' + p.thumbnail;
-      card.innerHTML = `
-        <a href="${{imgUrl}}" target="_blank">
-          <img src="${{thumbUrl}}" loading="lazy" alt="${{p.fileName}}">
-        </a>
-        <div class="card-info">
-          <div class="name" title="${{p.fileName}}">${{p.fileName}}</div>
-          <div class="date">${{p.date}}</div>
-        </div>`;
-      grid.appendChild(card);
-    }});
-  }}
+    return item;
+  });
 
-  function renderPagination() {{
-    const pagination = document.getElementById('pagination');
-    pagination.innerHTML = '';
-    if (totalPages <= 1) return;
+  initYearFilter();
 
-    const createBtn = (text, page, disabled = false, cls = '') => {{
-      const btn = document.createElement('button');
-      btn.textContent = text;
-      btn.disabled = disabled;
-      btn.className = cls;
-      btn.onclick = () => {{ goToPage(page); }};
-      return btn;
-    }};
+  bindEvents();
 
-    pagination.appendChild(createBtn('«', 1, currentPage === 1));
-    pagination.appendChild(createBtn('‹', currentPage - 1, currentPage === 1));
+  applyFilters();
+}
 
-    for (let i = 1; i <= totalPages; i++) {{
-      const btn = createBtn(i, i, false, i === currentPage ? 'active' : '');
-      pagination.appendChild(btn);
-    }}
+function initYearFilter(){
 
-    pagination.appendChild(createBtn('›', currentPage + 1, currentPage === totalPages));
-    pagination.appendChild(createBtn('»', totalPages, currentPage === totalPages));
-  }}
+  const years = [
+    ...new Set(
+      allPhotos
+        .map(p => p.year)
+        .filter(Boolean)
+    )
+  ].sort().reverse();
 
-  function goToPage(page) {{
-    if (page < 1 || page > totalPages) return;
-    currentPage = page;
-    renderPage();
-    renderPagination();
-    window.scrollTo({{ top: 0, behavior: 'smooth' }});
-  }}
+  const yearSelect = document.getElementById('yearFilter');
 
-  // 滚动自动加载
-  const sentinel = document.getElementById('sentinel');
-  const observer = new IntersectionObserver((entries) => {{
-    if (entries[0].isIntersecting && currentPage < totalPages) {{
-      currentPage++;
-      renderPage();
-      renderPagination();
-    }}
-  }}, {{ threshold: 0.1 }});
-  observer.observe(sentinel);
+  years.forEach(year => {
 
-  // 启动
-  initPhotos();
+    const opt = document.createElement('option');
+
+    opt.value = year;
+    opt.textContent = year;
+
+    yearSelect.appendChild(opt);
+  });
+}
+
+function bindEvents(){
+
+  document
+    .getElementById('search')
+    .addEventListener('input', debounce(applyFilters, 250));
+
+  document
+    .getElementById('yearFilter')
+    .addEventListener('change', applyFilters);
+
+  document
+    .getElementById('sortBy')
+    .addEventListener('change', applyFilters);
+}
+
+function applyFilters(){
+
+  const search = document
+    .getElementById('search')
+    .value
+    .toLowerCase()
+    .trim();
+
+  const year = document
+    .getElementById('yearFilter')
+    .value;
+
+  const sort = document
+    .getElementById('sortBy')
+    .value;
+
+  filteredPhotos = allPhotos.filter(photo => {
+
+    const matchName =
+      !search ||
+      photo.fileName.toLowerCase().includes(search);
+
+    const matchYear =
+      !year ||
+      photo.year == year;
+
+    return matchName && matchYear;
+  });
+
+  switch(sort){
+
+    case 'date-asc':
+
+      filteredPhotos.sort(
+        (a,b) => new Date(a.date) - new Date(b.date)
+      );
+
+      break;
+
+    case 'date-desc':
+
+      filteredPhotos.sort(
+        (a,b) => new Date(b.date) - new Date(a.date)
+      );
+
+      break;
+
+    case 'name-asc':
+
+      filteredPhotos.sort(
+        (a,b) => a.fileName.localeCompare(b.fileName)
+      );
+
+      break;
+
+    case 'name-desc':
+
+      filteredPhotos.sort(
+        (a,b) => b.fileName.localeCompare(a.fileName)
+      );
+
+      break;
+
+    case 'random':
+
+      shuffle(filteredPhotos);
+
+      break;
+  }
+
+  renderedCount = 0;
+
+  grid.innerHTML = '';
+
+  updateStats();
+
+  loadMore();
+
+  window.scrollTo({
+    top:0,
+    behavior:'instant'
+  });
+}
+
+function loadMore(){
+
+  if(loading) return;
+
+  loading = true;
+
+  const slice = filteredPhotos.slice(
+    renderedCount,
+    renderedCount + PER_LOAD
+  );
+
+  if(slice.length === 0){
+
+    loadingEl.innerHTML = '已经到底了';
+
+    loading = false;
+
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  slice.forEach(photo => {
+
+    const card = createCard(photo);
+
+    fragment.appendChild(card);
+  });
+
+  grid.appendChild(fragment);
+
+  renderedCount += slice.length;
+
+  loadingEl.innerHTML =
+    renderedCount >= filteredPhotos.length
+      ? '已经到底了'
+      : `已加载 ${renderedCount} / ${filteredPhotos.length}`;
+
+  loading = false;
+}
+
+function createCard(photo){
+
+  const card = document.createElement('div');
+
+  card.className = 'card';
+
+  const imgUrl =
+    RAW_BASE + '/' + photo.url;
+
+  const thumbUrl =
+    RAW_BASE + '/' + photo.thumbnail;
+
+  card.innerHTML = `
+    <a href="${imgUrl}" target="_blank">
+      <img
+        src="${thumbUrl}"
+        loading="lazy"
+        decoding="async"
+        alt="${photo.fileName}"
+      >
+    </a>
+
+    <div class="card-info">
+
+      <div
+        class="name"
+        title="${photo.fileName}"
+      >
+        ${photo.fileName}
+      </div>
+
+      <div class="date">
+        ${photo.date || ''}
+      </div>
+
+    </div>
+  `;
+
+  return card;
+}
+
+function updateStats(){
+
+  const stats =
+    document.getElementById('stats');
+
+  if(filteredPhotos.length === 0){
+
+    stats.innerHTML = '没有找到图片';
+
+    grid.innerHTML = `
+      <div class="empty">
+        没有匹配结果
+      </div>
+    `;
+
+    return;
+  }
+
+  stats.innerHTML =
+    `共 ${filteredPhotos.length} 张图片`;
+}
+
+function shuffle(array){
+
+  for(let i = array.length - 1; i > 0; i--){
+
+    const j =
+      Math.floor(
+        Math.random() * (i + 1)
+      );
+
+    [array[i], array[j]] =
+      [array[j], array[i]];
+  }
+}
+
+function debounce(fn, delay){
+
+  let timer;
+
+  return function(){
+
+    clearTimeout(timer);
+
+    timer = setTimeout(
+      () => fn.apply(this, arguments),
+      delay
+    );
+  };
+}
+
+const sentinel =
+  document.getElementById('sentinel');
+
+const observer =
+  new IntersectionObserver(entries => {
+
+    if(
+      entries[0].isIntersecting &&
+      renderedCount < filteredPhotos.length
+    ){
+      loadMore();
+    }
+
+  },{
+    rootMargin:'1200px'
+  });
+
+observer.observe(sentinel);
+
+initPhotos();
+
 </script>
+
 </body>
 </html>
 """
