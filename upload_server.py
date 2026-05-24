@@ -82,13 +82,21 @@ def index():
   .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
   .header h1 { font-size: 2rem; font-weight: 700; }
   .card { background: white; border-radius: 24px; padding: 32px; box-shadow: 0 12px 32px rgba(0,0,0,0.06); margin-bottom: 24px; }
-  .upload-area { border: 3px dashed #cbd5e1; border-radius: 20px; padding: 48px 24px; text-align: center;
-                 background: #f8fafc; cursor: pointer; transition: all 0.2s; margin-bottom: 20px; }
-  .upload-area:hover { border-color: #6366f1; background: #f1f5f9; }
+
+  /* 上传区域 - 无虚线，实线边框 */
+  .upload-area { border: 2px solid #e2e8f0; border-radius: 16px; padding: 40px 20px; text-align: center;
+                 background: #ffffff; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; }
+  .upload-area:hover { border-color: #6366f1; background: #f8fafc; }
   .upload-area input { display: none; }
-  .upload-icon { font-size: 3rem; margin-bottom: 12px; }
-  .upload-text { font-size: 1.2rem; font-weight: 600; color: #475569; }
+  .upload-icon { font-size: 2.8rem; margin-bottom: 8px; }
+  .upload-text { font-size: 1.2rem; font-weight: 600; color: #334155; }
   .upload-hint { font-size: 0.9rem; color: #94a3b8; margin-top: 6px; }
+
+  /* 文件列表 */
+  .file-list { margin-bottom: 16px; max-height: 150px; overflow-y: auto; }
+  .file-item { padding: 6px 12px; background: #f1f5f9; border-radius: 8px; margin-bottom: 4px;
+               font-size: 0.9rem; color: #475569; word-break: break-all; }
+
   .btn-group { display: flex; gap: 12px; flex-wrap: wrap; }
   button { padding: 12px 24px; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;
            font-size: 1rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
@@ -98,10 +106,12 @@ def index():
   .btn-stop:hover { background: #dc2626; }
   .btn-auto { background: #e2e8f0; color: #334155; }
   .btn-auto.active { background: #6366f1; color: white; }
-  .progress-section { margin-top: 24px; }
+
+  .progress-section { margin-top: 20px; }
   .progress-bar-bg { background: #e2e8f0; border-radius: 10px; height: 10px; overflow: hidden; }
   .progress-bar-fill { background: #4f46e5; height: 100%; width: 0%; transition: width 0.3s; }
-  .stats { display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.9rem; color: #64748b; }
+  .stats { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9rem; color: #64748b; }
+
   #logBox { margin-top: 16px; background: #0f172a; color: #a7f3d0; padding: 16px; border-radius: 16px;
             height: 260px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 0.8rem; line-height: 1.6; }
   .footer { margin-top: 12px; font-size: 0.85rem; color: #94a3b8; text-align: center; }
@@ -114,13 +124,16 @@ def index():
   </div>
 
   <div class="card">
-    <!-- 上传区域 -->
+    <!-- 上传区域（实线边框，美观） -->
     <label class="upload-area" id="uploadArea">
       <div class="upload-icon">⇧</div>
       <div class="upload-text">点击或拖拽文件到此处</div>
       <div class="upload-hint">支持 JPG, PNG, GIF, WEBP, ZIP</div>
       <input type="file" id="fileInput" multiple accept="image/*,.zip" />
     </label>
+
+    <!-- 已选文件列表 -->
+    <div class="file-list" id="fileList"></div>
 
     <div class="btn-group">
       <button class="btn-upload" onclick="startUpload()">⬆ 开始上传</button>
@@ -144,7 +157,7 @@ def index():
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <span style="font-weight:600;">📃 日志</span>
-      <span style="font-size:0.8rem; color:#64748b;" id="logStatus">等待上传</span>
+      <span style="font-size:0.8rem; color:#64748b;" id="logStatus">就绪</span>
     </div>
     <pre id="logBox"></pre>
   </div>
@@ -163,12 +176,35 @@ def index():
     const taskCounter = document.getElementById('taskCounter');
     const uploadSpeed = document.getElementById('uploadSpeed');
     const logStatus = document.getElementById('logStatus');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
 
     function log(msg) {
       const box = document.getElementById('logBox');
-      box.textContent += msg + '\n';
+      box.textContent += msg + '\\n';
       box.scrollTop = box.scrollHeight;
     }
+
+    // 初始提示
+    log('📋 请选择文件或拖拽到上方区域');
+
+    // 监听文件选择（包括拖拽后自动设置）
+    fileInput.addEventListener('change', () => {
+      const files = fileInput.files;
+      fileList.innerHTML = '';
+      if (files.length === 0) {
+        log('未选择文件');
+        return;
+      }
+      log(`已选择 ${files.length} 个文件:`);
+      for (const f of files) {
+        log(`  · ${f.name}`);
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.textContent = f.name;
+        fileList.appendChild(item);
+      }
+    });
 
     function updateProgress() {
       const pct = totalFiles > 0 ? (finishedFiles / totalFiles * 100) : 0;
@@ -188,27 +224,27 @@ def index():
       }
     }
 
-    // 拖拽支持
+    // 拖拽支持（与之前相同，但会触发 input 的 change 事件）
     const uploadArea = document.getElementById('uploadArea');
     uploadArea.addEventListener('dragover', (e) => {
       e.preventDefault();
       uploadArea.style.borderColor = '#6366f1';
-      uploadArea.style.background = '#f1f5f9';
+      uploadArea.style.background = '#f8fafc';
     });
     uploadArea.addEventListener('dragleave', () => {
-      uploadArea.style.borderColor = '#cbd5e1';
-      uploadArea.style.background = '#f8fafc';
+      uploadArea.style.borderColor = '#e2e8f0';
+      uploadArea.style.background = '#ffffff';
     });
     uploadArea.addEventListener('drop', (e) => {
       e.preventDefault();
-      uploadArea.style.borderColor = '#cbd5e1';
-      uploadArea.style.background = '#f8fafc';
+      uploadArea.style.borderColor = '#e2e8f0';
+      uploadArea.style.background = '#ffffff';
       const files = e.dataTransfer.files;
-      document.getElementById('fileInput').files = files;
+      fileInput.files = files;  // 这样会触发 change 事件
     });
 
     async function startUpload() {
-      const files = document.getElementById('fileInput').files;
+      const files = fileInput.files;
       if (!files.length) {
         log('⚠ 请先选择文件');
         return;
@@ -284,7 +320,6 @@ def index():
   </script>
 </body>
 </html>"""
-
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
