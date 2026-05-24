@@ -5,6 +5,7 @@ import hashlib
 import datetime
 import shutil
 import traceback
+import signal
 from pathlib import Path
 from flask import Flask, request, jsonify
 from PIL import Image
@@ -12,7 +13,7 @@ from PIL import Image
 app = Flask(__name__)
 
 # =========================
-# FIX: repo root
+# PATH FIX
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -35,7 +36,7 @@ def log(msg):
     print(f"[LOG] {msg}", flush=True)
 
 # =========================
-# HOME UI (FULL)
+# HOME UI
 # =========================
 @app.route("/")
 def index():
@@ -48,17 +49,22 @@ def index():
 
 <style>
 body { font-family: sans-serif; padding: 20px; }
+
 #log {
     margin-top: 15px;
     padding: 10px;
     background: #000;
-    color: #0f0;
-    height: 300px;
+    color: #00ff00;
+    height: 320px;
     overflow-y: auto;
     font-family: monospace;
     font-size: 12px;
+    border-radius: 6px;
 }
-button { margin: 5px; }
+
+button { margin: 5px; padding: 8px 12px; }
+
+#status { margin-top: 10px; color: gray; }
 </style>
 </head>
 
@@ -73,6 +79,7 @@ button { margin: 5px; }
 <button onclick="shutdown()">Stop Server</button>
 <button onclick="toggleAuto()">Auto Log: OFF</button>
 
+<div id="status">Status: running</div>
 <div id="log"></div>
 
 <script>
@@ -89,8 +96,13 @@ function log(msg){
 async function upload(){
     const files = document.getElementById('file').files;
 
-    for (let f of files){
-        log("Uploading: " + f.name);
+    if(!files.length){
+        log("⚠ No files");
+        return;
+    }
+
+    for(let f of files){
+        log("⬆ " + f.name);
 
         const fd = new FormData();
         fd.append("image", f);
@@ -102,18 +114,25 @@ async function upload(){
             });
 
             const j = await r.json();
-            log("OK: " + f.name + " => " + JSON.stringify(j));
+            log("✔ " + f.name + " => " + JSON.stringify(j));
 
         } catch(e){
-            log("FAIL: " + e);
+            log("❌ " + e);
         }
     }
 }
 
 async function shutdown(){
-    log("Stopping server...");
-    await fetch("/shutdown", { method: "POST" });
-    log("Shutdown sent");
+    log("🛑 shutting down...");
+
+    try {
+        const r = await fetch("/shutdown", { method: "POST" });
+        const j = await r.json();
+        log("✔ " + JSON.stringify(j));
+        document.getElementById("status").innerText = "Status: stopped";
+    } catch(e){
+        log("❌ shutdown error " + e);
+    }
 }
 
 function toggleAuto(){
@@ -172,7 +191,7 @@ def upload():
         photo_path.parent.mkdir(parents=True, exist_ok=True)
         thumb_path.parent.mkdir(parents=True, exist_ok=True)
 
-        log(f"PHOTO: {photo_path}")
+        log(f"PHOTO {photo_path}")
 
         with open(photo_path, "wb") as f:
             f.write(data)
@@ -186,7 +205,7 @@ def upload():
                 img = img.convert("RGB")
             img.save(thumb_path)
         except Exception as e:
-            log(f"thumb error: {e}")
+            log(f"thumb error {e}")
             shutil.copy(photo_path, thumb_path)
 
         photos_db[sha] = {
@@ -209,7 +228,7 @@ def upload():
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# LOG API (for auto mode)
+# LOGS API
 # =========================
 @app.route("/logs")
 def logs():
@@ -219,19 +238,25 @@ def logs():
     })
 
 # =========================
-# SHUTDOWN
+# SHUTDOWN (FIXED)
 # =========================
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
-    log("SHUTDOWN")
-    func = request.environ.get("werkzeug.server.shutdown")
-    if func:
-        func()
+    log("SHUTDOWN TRIGGERED")
+
+    try:
+        pid = os.getpid()
+        log(f"KILL PID {pid}")
+        os.kill(pid, signal.SIGTERM)
+    except Exception as e:
+        log(f"SIGTERM FAIL {e}")
+        os._exit(0)
+
     return jsonify({"ok": True})
 
 # =========================
 # MAIN
 # =========================
 if __name__ == "__main__":
-    log(f"BASE_DIR = {BASE_DIR}")
+    log(f"BASE {BASE_DIR}")
     app.run(host="0.0.0.0", port=5000, debug=False)
