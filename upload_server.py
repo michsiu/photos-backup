@@ -374,7 +374,6 @@ raw_base = """https://raw.githubusercontent.com/{user}/{repo}/{branch}/"""
 
 JSON_FILE = "photos.json"
 
-
 @app.route('/gallery')
 def gallery():
 
@@ -389,381 +388,428 @@ def gallery():
     return f"""
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Photo Gallery</title>
+    <title>Photo Gallery</title>
 
-<style>
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
-}
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
 
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  background:#f4f6f9;
-  color:#1e293b;
-}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f4f6f9;
+            color: #1e293b;
+        }}
 
-.container{
-  max-width:1400px;
-  margin:0 auto;
-  padding:20px;
-}
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }}
 
-h1{
-  text-align:center;
-  margin-bottom:20px;
-}
+        h1 {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
 
-.controls{
-  display:flex;
-  flex-wrap:wrap;
-  gap:12px;
-  margin-bottom:20px;
-}
+        .controls {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }}
 
-.controls input,
-.controls select{
-  padding:10px 12px;
-  border:1px solid #cbd5e1;
-  border-radius:8px;
-}
+        .controls input,
+        .controls select {{
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+        }}
 
-.controls input{
-  flex:1;
-  min-width:200px;
-}
+        .controls input {{
+            flex: 1;
+            min-width: 200px;
+        }}
 
-.grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-  gap:14px;
-}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 14px;
+        }}
 
-.card{
-  background:#fff;
-  border-radius:12px;
-  overflow:hidden;
-  box-shadow:0 4px 12px rgba(0,0,0,0.06);
-}
+        .card {{
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        }}
 
-.card img{
-  width:100%;
-  height:220px;
-  object-fit:cover;
-  display:block;
-}
+        .card img {{
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            display: block;
+        }}
 
-.card-info{
-  padding:10px;
-}
+        .card-info {{
+            padding: 10px;
+        }}
 
-.name{
-  font-size:14px;
-  font-weight:600;
-  overflow:hidden;
-  white-space:nowrap;
-  text-overflow:ellipsis;
-}
+        .name {{
+            font-size: 14px;
+            font-weight: 600;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }}
 
-.date{
-  font-size:12px;
-  color:#64748b;
-  margin-top:4px;
-}
+        .date {{
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }}
 
-.loading{
-  text-align:center;
-  padding:20px;
-  color:#64748b;
-}
+        .loading {{
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+        }}
 
-#sentinel{
-  height:1px;
-}
-</style>
+        #sentinel {{
+            height: 1px;
+        }}
+    </style>
 </head>
 
 <body>
 
-<div class="container">
+    <div class="container">
 
-<h1>📷 Photo Gallery</h1>
+        <h1>📷 Photo Gallery</h1>
 
-<div class="controls">
-  <input id="search" placeholder="搜索文件名">
-  <select id="yearFilter">
-    <option value="">所有年份</option>
-  </select>
-  <select id="sortBy">
-    <option value="date-desc">时间 ↓</option>
-    <option value="date-asc">时间 ↑</option>
-    <option value="name-asc">名称 A-Z</option>
-    <option value="name-desc">名称 Z-A</option>
-    <option value="random">随机</option>
-  </select>
-</div>
+        <div class="controls">
+            <input id="search" placeholder="搜索文件名">
 
-<div class="grid" id="grid"></div>
+            <select id="yearFilter">
+                <option value="">所有年份</option>
+            </select>
 
-<div class="loading" id="loading">加载中...</div>
+            <select id="sortBy">
+                <option value="date-desc">时间 ↓</option>
+                <option value="date-asc">时间 ↑</option>
+                <option value="name-asc">名称 A-Z</option>
+                <option value="name-desc">名称 Z-A</option>
+                <option value="random">随机</option>
+            </select>
+        </div>
 
-<div id="sentinel"></div>
+        <div class="grid" id="grid"></div>
 
-</div>
+        <div class="loading" id="loading">
+            加载中...
+        </div>
 
-<script>
+        <div id="sentinel"></div>
 
-var RAW_BASE = "{raw_base}";
-var ALL_PHOTOS_DATA = {photos_json};
+    </div>
 
-var PER_LOAD = 20;
+    <script>
 
-var allPhotos = [];
-var filteredPhotos = [];
+        var RAW_BASE = "{raw_base}";
+        var ALL_PHOTOS_DATA = {photos_json};
 
-var renderedCount = 0;
-var loading = false;
+        var PER_LOAD = 20;
 
-var grid = document.getElementById("grid");
-var loadingEl = document.getElementById("loading");
+        var allPhotos = [];
+        var filteredPhotos = [];
 
-function initPhotos(){
+        var renderedCount = 0;
+        var loading = false;
 
-  var raw = ALL_PHOTOS_DATA;
+        var grid = document.getElementById("grid");
+        var loadingEl = document.getElementById("loading");
 
-  allPhotos = Object.keys(raw).map(function(sha){
+        function initPhotos() {{
 
-    var item = raw[sha];
+            var raw = ALL_PHOTOS_DATA;
 
-    item.sha256 = sha;
+            allPhotos = Object.keys(raw).map(function (sha) {{
 
-    return item;
-  });
+                var item = raw[sha];
 
-  initYearFilter();
+                item.sha256 = sha;
 
-  bindEvents();
+                return item;
+            }});
 
-  applyFilters();
-}
+            initYearFilter();
 
-function initYearFilter(){
+            bindEvents();
 
-  var years = [];
+            applyFilters();
+        }}
 
-  allPhotos.forEach(function(p){
+        function initYearFilter() {{
 
-    if(p.year && years.indexOf(p.year) === -1){
-      years.push(p.year);
-    }
-  });
+            var years = [];
 
-  years.sort().reverse();
+            allPhotos.forEach(function (p) {{
 
-  var select = document.getElementById("yearFilter");
+                if (p.year && years.indexOf(p.year) === -1) {{
+                    years.push(p.year);
+                }}
+            }});
 
-  years.forEach(function(y){
+            years.sort().reverse();
 
-    var opt = document.createElement("option");
+            var select = document.getElementById("yearFilter");
 
-    opt.value = y;
-    opt.textContent = y;
+            years.forEach(function (y) {{
 
-    select.appendChild(opt);
-  });
-}
+                var opt = document.createElement("option");
 
-function bindEvents(){
+                opt.value = y;
+                opt.textContent = y;
 
-  document.getElementById("search").addEventListener("input", debounce(applyFilters, 200));
+                select.appendChild(opt);
+            }});
+        }}
 
-  document.getElementById("yearFilter").addEventListener("change", applyFilters);
+        function bindEvents() {{
 
-  document.getElementById("sortBy").addEventListener("change", applyFilters);
-}
+            document
+                .getElementById("search")
+                .addEventListener(
+                    "input",
+                    debounce(applyFilters, 200)
+                );
 
-function applyFilters(){
+            document
+                .getElementById("yearFilter")
+                .addEventListener("change", applyFilters);
 
-  var search = document.getElementById("search").value.toLowerCase();
+            document
+                .getElementById("sortBy")
+                .addEventListener("change", applyFilters);
+        }}
 
-  var year = document.getElementById("yearFilter").value;
+        function applyFilters() {{
 
-  var sort = document.getElementById("sortBy").value;
+            var search =
+                document.getElementById("search")
+                    .value
+                    .toLowerCase();
 
-  filteredPhotos = allPhotos.filter(function(p){
+            var year =
+                document.getElementById("yearFilter").value;
 
-    var matchName =
-      !search ||
-      p.fileName.toLowerCase().indexOf(search) !== -1;
+            var sort =
+                document.getElementById("sortBy").value;
 
-    var matchYear =
-      !year ||
-      p.year == year;
+            filteredPhotos = allPhotos.filter(function (p) {{
 
-    return matchName && matchYear;
-  });
+                var matchName =
+                    !search ||
+                    p.fileName.toLowerCase().indexOf(search) !== -1;
 
-  if(sort === "date-asc"){
-    filteredPhotos.sort(function(a,b){
-      return new Date(a.date) - new Date(b.date);
-    });
-  }
+                var matchYear =
+                    !year ||
+                    p.year == year;
 
-  if(sort === "date-desc"){
-    filteredPhotos.sort(function(a,b){
-      return new Date(b.date) - new Date(a.date);
-    });
-  }
+                return matchName && matchYear;
+            }});
 
-  if(sort === "name-asc"){
-    filteredPhotos.sort(function(a,b){
-      return a.fileName.localeCompare(b.fileName);
-    });
-  }
+            if (sort === "date-asc") {{
 
-  if(sort === "name-desc"){
-    filteredPhotos.sort(function(a,b){
-      return b.fileName.localeCompare(a.fileName);
-    });
-  }
+                filteredPhotos.sort(function (a, b) {{
+                    return new Date(a.date) - new Date(b.date);
+                }});
+            }}
 
-  if(sort === "random"){
-    shuffle(filteredPhotos);
-  }
+            if (sort === "date-desc") {{
 
-  renderedCount = 0;
+                filteredPhotos.sort(function (a, b) {{
+                    return new Date(b.date) - new Date(a.date);
+                }});
+            }}
 
-  grid.innerHTML = "";
+            if (sort === "name-asc") {{
 
-  updateStats();
+                filteredPhotos.sort(function (a, b) {{
+                    return a.fileName.localeCompare(b.fileName);
+                }});
+            }}
 
-  loadMore();
-}
+            if (sort === "name-desc") {{
 
-function loadMore(){
+                filteredPhotos.sort(function (a, b) {{
+                    return b.fileName.localeCompare(a.fileName);
+                }});
+            }}
 
-  if(loading) return;
+            if (sort === "random") {{
+                shuffle(filteredPhotos);
+            }}
 
-  loading = true;
+            renderedCount = 0;
 
-  var slice = filteredPhotos.slice(renderedCount, renderedCount + PER_LOAD);
+            grid.innerHTML = "";
 
-  if(slice.length === 0){
+            updateStats();
 
-    loadingEl.innerHTML = "已经到底了";
+            loadMore();
+        }}
 
-    loading = false;
+        function loadMore() {{
 
-    return;
-  }
+            if (loading) {{
+                return;
+            }}
 
-  var frag = document.createDocumentFragment();
+            loading = true;
 
-  slice.forEach(function(p){
+            var slice = filteredPhotos.slice(
+                renderedCount,
+                renderedCount + PER_LOAD
+            );
 
-    frag.appendChild(createCard(p));
-  });
+            if (slice.length === 0) {{
 
-  grid.appendChild(frag);
+                loadingEl.innerHTML = "已经到底了";
 
-  renderedCount += slice.length;
+                loading = false;
 
-  if(renderedCount >= filteredPhotos.length){
-    loadingEl.innerHTML = "已经到底了";
-  }else{
-    loadingEl.innerHTML = "已加载 " + renderedCount + " / " + filteredPhotos.length;
-  }
+                return;
+            }}
 
-  loading = false;
-}
+            var frag = document.createDocumentFragment();
 
-function createCard(photo){
+            slice.forEach(function (p) {{
+                frag.appendChild(createCard(p));
+            }});
 
-  var card = document.createElement("div");
+            grid.appendChild(frag);
 
-  card.className = "card";
+            renderedCount += slice.length;
 
-  var imgUrl = RAW_BASE + "/" + photo.url;
-  var thumbUrl = RAW_BASE + "/" + photo.thumbnail;
+            if (renderedCount >= filteredPhotos.length) {{
+                loadingEl.innerHTML = "已经到底了";
+            }} else {{
+                loadingEl.innerHTML =
+                    "已加载 " +
+                    renderedCount +
+                    " / " +
+                    filteredPhotos.length;
+            }}
 
-  var html =
-    '<a href="' + imgUrl + '" target="_blank">' +
-      '<img src="' + thumbUrl + '" loading="lazy" alt="' + photo.fileName + '">' +
-    '</a>' +
-    '<div class="card-info">' +
-      '<div class="name">' + photo.fileName + '</div>' +
-      '<div class="date">' + (photo.date || "") + '</div>' +
-    '</div>';
+            loading = false;
+        }}
 
-  card.innerHTML = html;
+        function createCard(photo) {{
 
-  return card;
-}
+            var card = document.createElement("div");
 
-function updateStats(){
+            card.className = "card";
 
-  if(filteredPhotos.length === 0){
-    grid.innerHTML = "<div style='padding:40px;text-align:center;color:#64748b'>没有结果</div>";
-    return;
-  }
-}
+            var imgUrl =
+                RAW_BASE + "/" + photo.url;
 
-function shuffle(arr){
+            var thumbUrl =
+                RAW_BASE + "/" + photo.thumbnail;
 
-  for(var i = arr.length - 1; i > 0; i--){
+            var html =
+                '<a href="' + imgUrl + '" target="_blank">' +
+                    '<img src="' + thumbUrl + '" loading="lazy" alt="' + photo.fileName + '">' +
+                '</a>' +
+                '<div class="card-info">' +
+                    '<div class="name">' + photo.fileName + '</div>' +
+                    '<div class="date">' + (photo.date || "") + '</div>' +
+                '</div>';
 
-    var j = Math.floor(Math.random() * (i + 1));
+            card.innerHTML = html;
 
-    var tmp = arr[i];
+            return card;
+        }}
 
-    arr[i] = arr[j];
+        function updateStats() {{
 
-    arr[j] = tmp;
-  }
-}
+            if (filteredPhotos.length === 0) {{
 
-function debounce(fn, delay){
+                grid.innerHTML =
+                    "<div style='padding:40px;text-align:center;color:#64748b'>没有结果</div>";
 
-  var timer;
+                return;
+            }}
+        }}
 
-  return function(){
+        function shuffle(arr) {{
 
-    clearTimeout(timer);
+            for (var i = arr.length - 1; i > 0; i--) {{
 
-    var args = arguments;
-    var self = this;
+                var j =
+                    Math.floor(Math.random() * (i + 1));
 
-    timer = setTimeout(function(){
-      fn.apply(self, args);
-    }, delay);
-  };
-}
+                var tmp = arr[i];
 
-var observer = new IntersectionObserver(function(entries){
+                arr[i] = arr[j];
+                arr[j] = tmp;
+            }}
+        }}
 
-  if(entries[0].isIntersecting){
+        function debounce(fn, delay) {{
 
-    if(renderedCount < filteredPhotos.length){
-      loadMore();
-    }
-  }
+            var timer;
 
-}, { rootMargin: "1000px" });
+            return function () {{
 
-observer.observe(document.getElementById("sentinel"));
+                clearTimeout(timer);
 
-initPhotos();
+                var args = arguments;
+                var self = this;
 
-</script>
+                timer = setTimeout(function () {{
+                    fn.apply(self, args);
+                }}, delay);
+            }};
+        }}
+
+        var observer = new IntersectionObserver(
+
+            function (entries) {{
+
+                if (entries[0].isIntersecting) {{
+
+                    if (renderedCount < filteredPhotos.length) {{
+                        loadMore();
+                    }}
+                }}
+
+            }},
+
+            {{
+                rootMargin: "1000px"
+            }}
+        );
+
+        observer.observe(
+            document.getElementById("sentinel")
+        );
+
+        initPhotos();
+
+    </script>
 
 </body>
 </html>
-
 """
+
+
 
     
