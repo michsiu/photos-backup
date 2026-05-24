@@ -32,24 +32,23 @@ jobs:
           chmod +x ngrok
           ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
 
-      - name: Start Flask
+      - name: Start server, ngrok, and wait for shutdown
         run: |
+          # 1. 启动 Flask (后台，记录PID)
           nohup python upload_server.py > server.log 2>&1 &
           echo $! > flask.pid
           sleep 2
 
-      - name: Start ngrok
-        run: |
+          # 2. 启动 ngrok
           nohup ./ngrok http 5000 > ngrok.log 2>&1 &
           echo $! > ngrok.pid
 
-      - name: Wait for ngrok and print URL
-        run: |
+          # 3. 等待 ngrok 隧道就绪并打印URL
           URL=""
           for i in {1..60}; do
             URL=$(curl -s http://127.0.0.1:4040/api/tunnels \
               | grep -oE 'https://[a-zA-Z0-9.-]+' | head -n 1)
-            if [ ! -z "$URL" ]; then
+            if [ -n "$URL" ]; then
               echo "=============================================="
               echo "  Upload page available at: $URL"
               echo "  Open this URL in your browser to upload."
@@ -59,15 +58,18 @@ jobs:
             sleep 2
           done
           if [ -z "$URL" ]; then
-            echo "Failed to obtain ngrok URL. Last ngrok log:"
+            echo "Failed to get ngrok URL. Ngrok log:"
             tail -20 ngrok.log
             exit 1
           fi
 
-      - name: Keep alive until shutdown
-        run: |
-          echo "Waiting for Flask server to exit..."
-          wait $(cat flask.pid)
+          # 4. 循环等待 Flask 进程退出（用户点 Stop 后 os._exit 会结束它）
+          FLASK_PID=$(cat flask.pid)
+          echo "Flask PID: $FLASK_PID - waiting for shutdown..."
+          while kill -0 $FLASK_PID 2>/dev/null; do
+            sleep 5
+          done
+          echo "Flask server has stopped."
 
       - name: Commit and push changes
         run: |
