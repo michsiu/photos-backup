@@ -14,8 +14,15 @@ jobs:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout (sparse)
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            photos.json
+            incoming
+            process_photos.py
+            upload_server.py
+            sparse-checkout-cone-mode: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
