@@ -215,24 +215,7 @@ async function shutdown() {
     alert('服务已关闭');
 }
 
-async function pollLogs() {
 
-    try {
-
-        const resp = await fetch('/logs');
-
-        const text = await resp.text();
-
-        const el = document.getElementById('logs');
-
-        el.textContent = text;
-
-        el.scrollTop = el.scrollHeight;
-
-    } catch (e) {}
-}
-
-setInterval(pollLogs, 1000);
 
 </script>
 
