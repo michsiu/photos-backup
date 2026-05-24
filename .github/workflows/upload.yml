@@ -92,6 +92,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add photos/ thumbs/ photos.json
+          git add --sparse photos/ thumbs/ photos.json
           git commit -m "Upload new photos via ngrok" || echo "No changes to commit"
           git push
