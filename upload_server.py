@@ -14,14 +14,14 @@ import piexif
 app = Flask(__name__)
 
 # =========================
-# PATHS
+# PATH
 # =========================
 JSON_FILE = Path('photos.json')
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
 
 # =========================
-# LOG SYSTEM (print + frontend buffer)
+# LOG SYSTEM
 # =========================
 log_buffer = []
 
@@ -57,7 +57,8 @@ UPLOAD_PAGE = """
 
 <style>
 body { font-family: sans-serif; max-width: 900px; margin: 30px auto; }
-button { padding: 10px 15px; margin-right: 10px; }
+button { padding: 10px 15px; margin-right: 10px; margin-top: 5px; }
+
 #logs {
     margin-top: 20px;
     background: #111;
@@ -76,10 +77,12 @@ button { padding: 10px 15px; margin-right: 10px; }
 <h2>📷 Photo Upload</h2>
 
 <input type="file" id="file" multiple>
+
 <br><br>
 
 <button onclick="upload()">Upload</button>
 <button onclick="toggleLogs()">🟢 Pause Logs</button>
+<button onclick="stopServer()">🛑 Stop Server</button>
 
 <pre id="logs"></pre>
 
@@ -88,6 +91,9 @@ button { padding: 10px 15px; margin-right: 10px; }
 let timer = null;
 let enabled = true;
 
+// =====================
+// upload
+// =====================
 async function upload() {
     const files = document.getElementById('file').files;
 
@@ -102,20 +108,20 @@ async function upload() {
     }
 }
 
-// ===== LOG POLLING =====
+// =====================
+// logs
+// =====================
 async function fetchLogs() {
     const r = await fetch('/logs');
     const t = await r.text();
     document.getElementById('logs').textContent = t;
 }
 
-// start polling
 function startLogs() {
     if (timer) return;
     timer = setInterval(fetchLogs, 1000);
 }
 
-// stop polling
 function stopLogs() {
     if (timer) {
         clearInterval(timer);
@@ -123,7 +129,6 @@ function stopLogs() {
     }
 }
 
-// toggle button
 function toggleLogs() {
     enabled = !enabled;
 
@@ -134,6 +139,21 @@ function toggleLogs() {
         stopLogs();
         document.querySelector("button[onclick='toggleLogs()']").innerText = "🔴 Resume Logs";
     }
+}
+
+// =====================
+// STOP SERVER
+// =====================
+async function stopServer() {
+    const ok = confirm("确定要关闭服务器吗？");
+
+    if (!ok) return;
+
+    await fetch('/shutdown', {
+        method: 'POST'
+    });
+
+    alert("服务器已关闭");
 }
 
 // init
@@ -157,7 +177,7 @@ def logs():
     return "\n".join(log_buffer)
 
 # =========================
-# EXIF DATE
+# EXIF
 # =========================
 def get_exif_date(image_bytes):
     try:
@@ -190,9 +210,6 @@ def upload():
         log(f"📥 upload start: {file.filename}")
 
         data = file.read()
-
-        size_mb = len(data) / 1024 / 1024
-        log(f"📦 size: {size_mb:.2f} MB")
 
         sha = hashlib.sha256(data).hexdigest()
         log(f"🔐 sha256: {sha[:10]}...")
@@ -253,6 +270,23 @@ def upload():
         log("❌ upload error")
         print(traceback.format_exc())
         return jsonify({"status": "error"}), 500
+
+# =========================
+# SHUTDOWN (新增)
+# =========================
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    log("🛑 shutdown requested from frontend")
+
+    func = request.environ.get('werkzeug.server.shutdown')
+
+    if func is None:
+        log("⚠ fallback os._exit(0)")
+        os._exit(0)
+
+    func()
+
+    return jsonify({"status": "shutting down"})
 
 # =========================
 # MAIN
