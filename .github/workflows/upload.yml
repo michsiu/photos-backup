@@ -3,81 +3,115 @@ name: Photo Upload via Ngrok
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   upload:
     runs-on: ubuntu-latest
+
     env:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      GITHUB_REPOSITORY: ${{ github.repository }}
-      GITHUB_REF: ${{ github.ref }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: pip install flask pillow piexif
+      - name: Install dependencies
+        run: |
+          pip install flask pillow piexif
 
       - name: Download and setup ngrok
         run: |
           wget -q -O ngrok.zip https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
           unzip -o ngrok.zip
           chmod +x ngrok
-          ./ngrok authtoken $NGROK_AUTH_TOKEN
 
-      - name: Start upload server and ngrok
+          ./ngrok authtoken "$NGROK_AUTH_TOKEN"
+
+      - name: Configure git
         run: |
-          python upload_server.py &
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Start upload server + ngrok
+        run: |
+          python upload_server.py > server.log 2>&1 &
+
           sleep 2
 
           ./ngrok http 5000 --log=stdout > ngrok.log 2>&1 &
 
+          echo "Waiting for ngrok tunnel..."
+
           NGROK_URL=""
+
           for i in {1..60}; do
-            if curl -s http://127.0.0.1:4040/api/tunnels > /tmp/ngrok_response 2>&1; then
-              NGROK_URL=$(python -c "
+            if curl -s http://127.0.0.1:4040/api/tunnels > /tmp/ngrok.json 2>/dev/null; then
+
+              NGROK_URL=$(python3 - <<'PY'
 import json
-with open('/tmp/ngrok_response') as f:
-    data = json.load(f)
-tunnels = data.get('tunnels', [])
-if tunnels:
-    print(tunnels[0].get('public_url', ''))
-" 2>/dev/null)
+
+try:
+    with open("/tmp/ngrok.json") as f:
+        data = json.load(f)
+
+    tunnels = data.get("tunnels", [])
+
+    for t in tunnels:
+        url = t.get("public_url", "")
+        if url.startswith("https://"):
+            print(url)
+            break
+
+except:
+    pass
+PY
+)
+
               if [ ! -z "$NGROK_URL" ]; then
                 break
               fi
             fi
-            echo "Waiting for ngrok tunnel... (attempt $i/60)"
+
+            echo "Attempt $i/60..."
+
             if [ $i -eq 10 ]; then
-              echo "--- ngrok log (last 5 lines) ---"
-              tail -5 ngrok.log || true
-              echo "--- end ---"
+              echo "========== NGROK LOG =========="
+              tail -20 ngrok.log || true
+              echo "================================"
             fi
+
             sleep 1
           done
 
           if [ -z "$NGROK_URL" ]; then
             echo "Failed to get ngrok URL"
-            cat ngrok.log
+
+            echo "========== NGROK LOG =========="
+            cat ngrok.log || true
+
+            echo "========== SERVER LOG =========="
+            cat server.log || true
+
             exit 1
           fi
 
+          echo ""
           echo "=============================================="
-          echo "  Upload page available at: $NGROK_URL"
-          echo "  Open this URL in your browser to upload."
+          echo " Photo Upload Server Running"
+          echo ""
+          echo " Upload URL:"
+          echo " $NGROK_URL"
+          echo ""
           echo "=============================================="
+          echo ""
 
-          wait
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add photos/ thumbs/ photos.json
-          git commit -m "Upload new photos via ngrok" || echo "No changes to commit"
-          git push
+          echo "Keeping workflow alive..."
+          tail -f /dev/null
