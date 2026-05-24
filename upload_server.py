@@ -361,7 +361,8 @@ def shutdown():
 
     
 
-
+# 在 gallery 路由的 Python 代码顶部，已经有这行（如果没有就加上）
+raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}"
 @app.route('/gallery')
 def gallery():
     # 直接读 photos.json，把数据嵌入页面
@@ -427,8 +428,7 @@ def gallery():
   const RAW_BASE = "{raw_base}";
   
 
-# 在 gallery 路由的 Python 代码顶部，已经有这行（如果没有就加上）
-raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}"
+
   // 服务端直接注入数据，无需额外请求
   var ALL_PHOTOS_DATA = {photos_json};
 
