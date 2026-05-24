@@ -364,25 +364,3 @@ def shutdown():
 
     
 
-# 在 gallery 路由的 Python 代码顶部，已经有这行（如果没有就加上）
-raw_base = f"https://raw.githubusercontent.com/{user}/{repo}/{branch}"
-
-
-@app.route('/gallery')
-def gallery():
-
-    try:
-        with open(JSON_FILE, 'r', encoding='utf-8') as f:
-            photos = json.load(f)
-    except Exception:
-        photos = {}
-
-    photos_json = json.dumps(photos, ensure_ascii=False)
-
-    return f"""<!doctype html>"""
-
-
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
