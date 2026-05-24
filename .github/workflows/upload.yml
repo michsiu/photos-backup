@@ -12,96 +12,74 @@ jobs:
 
     env:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: |
-          pip install flask pillow piexif
+      - name: Install deps
+        run: pip install flask pillow piexif
 
       - name: Install ngrok
         run: |
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
           unzip -o ngrok-v3-stable-linux-amd64.zip
-
           chmod +x ngrok
-
           ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
 
-      - name: Configure git
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-
-      - name: Start Flask upload server
+      # =========================
+      # START SERVER (PID SAFE)
+      # =========================
+      - name: Start Flask
         run: |
           nohup python upload_server.py > server.log 2>&1 &
+          echo $! > flask.pid
 
-      - name: Start ngrok tunnel
+      - name: Start ngrok
         run: |
           nohup ./ngrok http 5000 > ngrok.log 2>&1 &
+          echo $! > ngrok.pid
 
-      - name: Wait for ngrok and print URL
+      # =========================
+      # WAIT URL
+      # =========================
+      - name: Wait ngrok URL
         run: |
-          echo "Waiting for ngrok tunnel..."
-
-          URL=""
-
-          for i in {1..90}; do
-
-            RESPONSE=$(curl -s http://127.0.0.1:4040/api/tunnels || true)
-
-            URL=$(echo "$RESPONSE" | grep -oE 'https://[^"]+' | head -n 1)
+          for i in {1..60}; do
+            URL=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'https://[a-zA-Z0-9.-]+' | head -n 1)
 
             if [ ! -z "$URL" ]; then
               break
             fi
 
-            echo "Attempt $i/90"
+            echo "waiting..."
             sleep 2
           done
 
-          echo ""
-          echo "================ NGROK RESPONSE ================"
-          echo "$RESPONSE"
-          echo "================================================"
-          echo ""
+          echo "UPLOAD URL: $URL"
 
-          if [ -z "$URL" ]; then
-            echo "ERROR: Failed to detect ngrok URL"
-
-            echo ""
-            echo "================ NGROK LOG ================"
-            cat ngrok.log || true
-            echo "==========================================="
-            echo ""
-
-            echo ""
-            echo "================ SERVER LOG ================"
-            cat server.log || true
-            echo "============================================"
-            echo ""
-
-            exit 1
-          fi
-
-          echo ""
-          echo "============================================"
-          echo " PHOTO UPLOAD SERVER READY"
-          echo ""
-          echo " Upload URL:"
-          echo " $URL"
-          echo ""
-          echo "============================================"
-
-      - name: Keep workflow alive
+      # =========================
+      # AUTO COMMIT (FIXED)
+      # =========================
+      - name: Commit results
         run: |
-          echo "Keeping workflow alive..."
-          tail -f /dev/null
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add photos.json photos thumbs server.log ngrok.log || true
+          git commit -m "auto update" || true
+
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git || true
+
+      # =========================
+      # CLEAN EXIT (NO tail freeze)
+      # =========================
+      - name: Wait for shutdown
+        run: |
+          while [ ! -f STOP ]; do
+            sleep 2
+          done
