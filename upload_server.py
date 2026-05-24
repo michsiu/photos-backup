@@ -5,7 +5,6 @@ import hashlib
 import datetime
 import shutil
 import traceback
-
 from pathlib import Path
 from flask import Flask, request, jsonify
 from PIL import Image
@@ -13,350 +12,167 @@ import piexif
 
 app = Flask(__name__)
 
-JSON_FILE = Path("photos.json")
+# =========================
+# 🔥 FIX: 永远锁 repo root
+# =========================
+BASE_DIR = Path(__file__).resolve().parent
 
-ALLOWED_EXTENSIONS = {
-    ".jpg", ".jpeg", ".png", ".gif", ".webp"
-}
+UPLOAD_FOLDER = BASE_DIR / "photos"
+THUMB_FOLDER = BASE_DIR / "thumbs"
+JSON_FILE = BASE_DIR / "photos.json"
+
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+THUMB_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # =========================
-# LOG
+# 内存数据库
 # =========================
-
-log_buffer = []
-
-def log(msg):
-    ts = datetime.datetime.now().strftime("%H:%M:%S")
-    line = f"[{ts}] {msg}"
-
-    print(line, flush=True)
-
-    log_buffer.append(line)
-
-    if len(log_buffer) > 500:
-        log_buffer.pop(0)
-
-# =========================
-# DB
-# =========================
-
 if JSON_FILE.exists():
-    try:
-        photos_db = json.loads(
-            JSON_FILE.read_text(encoding="utf-8")
-        )
-    except:
-        photos_db = {}
+    photos_db = json.loads(JSON_FILE.read_text(encoding="utf-8"))
 else:
     photos_db = {}
 
 # =========================
-# HTML
+# 简单日志
 # =========================
-
-UPLOAD_PAGE = """
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Uploader</title>
-
-<style>
-body{
-    font-family:sans-serif;
-    max-width:900px;
-    margin:30px auto;
-}
-
-button{
-    padding:10px 15px;
-    margin-right:10px;
-}
-
-#logs{
-    background:#111;
-    color:#0f0;
-    height:300px;
-    overflow:auto;
-    padding:10px;
-    white-space:pre-wrap;
-}
-</style>
-</head>
-
-<body>
-
-<h2>Photo Upload</h2>
-
-<input type="file" id="file" multiple>
-
-<br><br>
-
-<button onclick="upload()">Upload</button>
-<button onclick="toggleLogs()">Pause Logs</button>
-<button onclick="stopServer()">Stop Server</button>
-
-<pre id="logs"></pre>
-
-<script>
-
-let timer = null;
-let logsEnabled = true;
-let lastLogLength = 0;
-
-// =========================
-// upload
-// =========================
-
-async function upload(){
-
-    const files = document.getElementById('file').files;
-
-    for(const file of files){
-
-        const fd = new FormData();
-
-        fd.append('image', file);
-
-        await fetch('/upload',{
-            method:'POST',
-            body:fd
-        });
-    }
-}
-
-// =========================
-// logs
-// =========================
-
-async function fetchLogs(){
-
-    try{
-
-        const r = await fetch('/logs');
-
-        const t = await r.text();
-
-        const el = document.getElementById('logs');
-
-        el.textContent = t;
-
-        el.scrollTop = el.scrollHeight;
-
-    }catch(e){
-        console.log(e);
-    }
-}
-
-function startLogs(){
-
-    if(timer) return;
-
-    timer = setInterval(fetchLogs,1000);
-}
-
-function stopLogs(){
-
-    clearInterval(timer);
-
-    timer = null;
-}
-
-function toggleLogs(){
-
-    logsEnabled = !logsEnabled;
-
-    if(logsEnabled){
-
-        startLogs();
-
-    }else{
-
-        stopLogs();
-    }
-}
-
-// =========================
-// shutdown
-// =========================
-
-async function stopServer(){
-
-    const ok = confirm("Stop server?");
-
-    if(!ok) return;
-
-    try{
-
-        await fetch('/shutdown',{
-            method:'POST'
-        });
-
-        alert("Server stopped");
-
-    }catch(e){
-
-        console.log(e);
-    }
-}
-
-startLogs();
-
-</script>
-
-</body>
-</html>
-"""
+def log(msg):
+    print(f"[LOG] {msg}", flush=True)
 
 # =========================
-# ROUTES
+# EXIF 时间
 # =========================
-
-@app.route("/")
-def index():
-    return UPLOAD_PAGE
-
-@app.route("/logs")
-def logs():
-    return "\n".join(log_buffer)
-
-# =========================
-# EXIF
-# =========================
-
-def get_exif_date(data):
-
+def get_exif_date(image_bytes):
     try:
-
-        exif = piexif.load(data)
-
-        for ifd in ["Exif","0th"]:
-
-            for tag in [36867,36868,306]:
-
-                if tag in exif.get(ifd,{}):
-
-                    dt = exif[ifd][tag].decode()
-
-                    return datetime.datetime.strptime(
-                        dt,
-                        "%Y:%m:%d %H:%M:%S"
-                    )
-
-    except:
-
-        print(traceback.format_exc())
-
+        exif_dict = piexif.load(image_bytes)
+        for ifd_name in ["Exif", "0th"]:
+            ifd = exif_dict.get(ifd_name, {})
+            for tag in [36867, 36868, 306]:
+                if tag in ifd:
+                    dt_str = ifd[tag].decode(errors="ignore")
+                    dt = datetime.datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
+                    return dt.replace(tzinfo=datetime.timezone.utc)
+    except Exception as e:
+        log(f"EXIF ERROR: {e}")
     return None
 
 # =========================
-# UPLOAD
+# 时间兜底
 # =========================
+def get_utc_now():
+    return datetime.datetime.now(datetime.timezone.utc)
 
-@app.route("/upload",methods=["POST"])
+# =========================
+# 上传接口
+# =========================
+@app.route("/upload", methods=["POST"])
 def upload():
-
     try:
+        log("🔥 UPLOAD HIT")
 
-        if "image" not in request.files:
-            return jsonify({"error":"no file"}),400
+        file = request.files.get("image")
+        if not file:
+            return jsonify({"error": "no file"}), 400
 
-        file = request.files["image"]
+        image_bytes = file.read()
 
-        log(f"UPLOAD {file.filename}")
-
-        data = file.read()
-
-        sha = hashlib.sha256(data).hexdigest()
-
+        sha256 = hashlib.sha256(image_bytes).hexdigest()
         ext = os.path.splitext(file.filename)[1].lower()
 
-        if ext not in ALLOWED_EXTENSIONS:
-            return jsonify({"error":"bad ext"}),400
+        if ext not in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+            return jsonify({"error": "bad ext"}), 400
 
-        dt = get_exif_date(data)
-
-        if not dt:
-            dt = datetime.datetime.utcnow()
-
+        # 时间
+        dt = get_exif_date(image_bytes) or get_utc_now()
         year = str(dt.year)
 
-        photo_path = Path(f"photos/{year}/{sha}{ext}")
-        thumb_path = Path(f"thumbs/{year}/{sha}{ext}")
+        # =========================
+        # 🔥 FIX: 绝对路径写入
+        # =========================
+        photo_path = UPLOAD_FOLDER / year / f"{sha256}{ext}"
+        thumb_path = THUMB_FOLDER / year / f"{sha256}{ext}"
 
-        photo_path.parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
+        photo_path.parent.mkdir(parents=True, exist_ok=True)
+        thumb_path.parent.mkdir(parents=True, exist_ok=True)
 
-        thumb_path.parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
+        log(f"CWD = {os.getcwd()}")
+        log(f"PHOTO_PATH = {photo_path}")
+        log(f"THUMB_PATH = {thumb_path}")
+        log(f"JSON_PATH = {JSON_FILE}")
 
-        with open(photo_path,"wb") as f:
-            f.write(data)
+        # =========================
+        # 写原图
+        # =========================
+        with open(photo_path, "wb") as f:
+            f.write(image_bytes)
+            f.flush()
+            os.fsync(f.fileno())
 
+        # =========================
+        # 缩略图
+        # =========================
         try:
+            img = Image.open(io.BytesIO(image_bytes))
+            img.thumbnail((400, 400))
 
-            img = Image.open(io.BytesIO(data))
-
-            img.thumbnail((400,400))
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGB")
 
             img.save(thumb_path)
+        except Exception as e:
+            log(f"THUMB ERROR: {e}")
+            shutil.copy(photo_path, thumb_path)
 
-        except:
-
-            shutil.copy(photo_path,thumb_path)
-
-        photos_db[sha] = {
-            "file":file.filename,
-            "path":str(photo_path)
+        # =========================
+        # JSON 更新
+        # =========================
+        photos_db[sha256] = {
+            "fileName": file.filename,
+            "path": str(photo_path.relative_to(BASE_DIR)),
+            "thumb": str(thumb_path.relative_to(BASE_DIR)),
+            "year": year,
+            "sha256": sha256,
+            "time": dt.isoformat()
         }
 
-        JSON_FILE.write_text(
-            json.dumps(
-                photos_db,
-                indent=2,
-                ensure_ascii=False
-            ),
+        # =========================
+        # 🔥 atomic write
+        # =========================
+        tmp = JSON_FILE.with_suffix(".tmp")
+
+        tmp.write_text(
+            json.dumps(photos_db, indent=2, ensure_ascii=False),
             encoding="utf-8"
         )
+        tmp.replace(JSON_FILE)
 
-        log("DONE")
+        log("✅ SAVED OK")
 
-        return jsonify({"ok":True})
+        return jsonify({
+            "status": "ok",
+            "sha256": sha256,
+            "path": str(photo_path)
+        })
 
     except Exception as e:
-
-        print(traceback.format_exc())
-
-        return jsonify({"error":str(e)}),500
+        log("❌ UPLOAD ERROR")
+        log(str(e))
+        log(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 # =========================
-# SHUTDOWN
+# shutdown
 # =========================
-
-@app.route("/shutdown",methods=["POST"])
+@app.route("/shutdown", methods=["POST"])
 def shutdown():
-
-    log("SERVER STOP REQUEST")
-
-    # 给 workflow 发退出信号
-    Path("STOP").touch()
-
-    return jsonify({"ok":True})
+    log("🛑 shutdown called")
+    func = request.environ.get("werkzeug.server.shutdown")
+    if func:
+        func()
+    return jsonify({"ok": True})
 
 # =========================
-# MAIN
+# main
 # =========================
-
 if __name__ == "__main__":
-
-    log("SERVER START")
-
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=False
-    )
+    log(f"BASE_DIR = {BASE_DIR}")
+    app.run(host="0.0.0.0", port=5000, debug=False)
