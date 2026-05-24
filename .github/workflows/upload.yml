@@ -34,16 +34,18 @@ jobs:
 
       - name: Start server, ngrok, and wait for shutdown
         run: |
-          # 1. 启动 Flask (后台，记录PID.)
+          mkdir -p incoming
+
+          # 启动轻量上传服务
           nohup python upload_server.py > server.log 2>&1 &
           echo $! > flask.pid
           sleep 2
 
-          # 2. 启动 ngrok
+          # 启动 ngrok
           nohup ./ngrok http 5000 > ngrok.log 2>&1 &
           echo $! > ngrok.pid
 
-          # 3. 等待 ngrok 隧道就绪并打印URL
+          # 获取公网 URL
           URL=""
           for i in {1..60}; do
             URL=$(curl -s http://127.0.0.1:4040/api/tunnels \
@@ -63,13 +65,21 @@ jobs:
             exit 1
           fi
 
-          # 4. 循环等待 Flask 进程退出（用户点 Stop 后 os._exit 会结束它）
+          # 等待 Flask 进程退出（用户点击 Stop 后 os._exit）
           FLASK_PID=$(cat flask.pid)
           echo "Flask PID: $FLASK_PID - waiting for shutdown..."
           while kill -0 $FLASK_PID 2>/dev/null; do
             sleep 5
           done
-          echo "Flask server has stopped."
+          echo "Upload server stopped."
+
+      - name: Process all incoming photos
+        run: |
+          if [ -z "$(ls -A incoming/)" ]; then
+            echo "No new photos to process."
+          else
+            python process_photos.py
+          fi
 
       - name: Commit and push changes
         run: |
