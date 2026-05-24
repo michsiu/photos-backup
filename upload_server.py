@@ -13,21 +13,23 @@ import piexif
 
 app = Flask(__name__)
 
-UPLOAD_FOLDER = Path('photos')
-THUMB_FOLDER = Path('thumbs')
+# =========================
+# PATHS
+# =========================
 JSON_FILE = Path('photos.json')
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
 
 # =========================
-# LOG BUFFER（核心）
+# LOG SYSTEM (print + frontend buffer)
 # =========================
 log_buffer = []
 
 def log(msg):
-    """同时输出到 console + 前端日志"""
-    print(msg, flush=True)
-    log_buffer.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
+    ts = datetime.datetime.now().strftime("%H:%M:%S")
+    line = f"[{ts}] {msg}"
+    print(line, flush=True)
+    log_buffer.append(line)
     if len(log_buffer) > 500:
         log_buffer.pop(0)
 
@@ -35,45 +37,61 @@ def log(msg):
 # LOAD DB
 # =========================
 if JSON_FILE.exists():
-    with open(JSON_FILE, 'r') as f:
-        photos_db = json.load(f)
+    try:
+        photos_db = json.loads(JSON_FILE.read_text(encoding='utf-8'))
+    except Exception:
+        log("❌ photos.json load failed")
+        photos_db = {}
 else:
     photos_db = {}
 
 # =========================
 # FRONTEND
 # =========================
-UPLOAD_PAGE = '''
+UPLOAD_PAGE = """
 <!doctype html>
-<html>
+<html lang="zh">
 <head>
 <meta charset="utf-8">
 <title>Uploader</title>
+
 <style>
-body { font-family: sans-serif; max-width: 800px; margin: 30px auto; }
+body { font-family: sans-serif; max-width: 900px; margin: 30px auto; }
+button { padding: 10px 15px; margin-right: 10px; }
 #logs {
-  background:#111;color:#0f0;
-  height:300px;overflow:auto;
-  padding:10px;white-space:pre-wrap;
+    margin-top: 20px;
+    background: #111;
+    color: #0f0;
+    padding: 10px;
+    height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-size: 12px;
 }
 </style>
 </head>
+
 <body>
 
-<h2>📷 Upload</h2>
+<h2>📷 Photo Upload</h2>
 
 <input type="file" id="file" multiple>
+<br><br>
+
 <button onclick="upload()">Upload</button>
+<button onclick="toggleLogs()">🟢 Pause Logs</button>
 
 <pre id="logs"></pre>
 
 <script>
 
+let timer = null;
+let enabled = true;
+
 async function upload() {
     const files = document.getElementById('file').files;
 
     for (let i = 0; i < files.length; i++) {
-
         const fd = new FormData();
         fd.append('image', files[i]);
 
@@ -84,33 +102,62 @@ async function upload() {
     }
 }
 
-async function poll() {
+// ===== LOG POLLING =====
+async function fetchLogs() {
     const r = await fetch('/logs');
     const t = await r.text();
     document.getElementById('logs').textContent = t;
 }
 
-setInterval(poll, 1000);
+// start polling
+function startLogs() {
+    if (timer) return;
+    timer = setInterval(fetchLogs, 1000);
+}
+
+// stop polling
+function stopLogs() {
+    if (timer) {
+        clearInterval(timer);
+        timer = null;
+    }
+}
+
+// toggle button
+function toggleLogs() {
+    enabled = !enabled;
+
+    if (enabled) {
+        startLogs();
+        document.querySelector("button[onclick='toggleLogs()']").innerText = "🟢 Pause Logs";
+    } else {
+        stopLogs();
+        document.querySelector("button[onclick='toggleLogs()']").innerText = "🔴 Resume Logs";
+    }
+}
+
+// init
+startLogs();
 
 </script>
 
 </body>
 </html>
-'''
+"""
 
+# =========================
+# ROUTES
+# =========================
 @app.route('/')
 def index():
     return UPLOAD_PAGE
 
-# =========================
-# LOG API
-# =========================
 @app.route('/logs')
 def logs():
     return "\n".join(log_buffer)
 
 # =========================
-# EXIF
+# EXIF DATE
 # =========================
 def get_exif_date(image_bytes):
     try:
@@ -123,7 +170,7 @@ def get_exif_date(image_bytes):
                     return datetime.datetime.strptime(dt, "%Y:%m:%d %H:%M:%S")
 
     except Exception:
-        log("EXIF parse failed")
+        log("❌ EXIF parse failed")
         print(traceback.format_exc())
 
     return None
@@ -133,7 +180,6 @@ def get_exif_date(image_bytes):
 # =========================
 @app.route('/upload', methods=['POST'])
 def upload():
-
     try:
         if 'image' not in request.files:
             log("❌ no file")
@@ -144,6 +190,9 @@ def upload():
         log(f"📥 upload start: {file.filename}")
 
         data = file.read()
+
+        size_mb = len(data) / 1024 / 1024
+        log(f"📦 size: {size_mb:.2f} MB")
 
         sha = hashlib.sha256(data).hexdigest()
         log(f"🔐 sha256: {sha[:10]}...")
@@ -181,7 +230,7 @@ def upload():
             img.save(thumb_path)
             log("🖼 thumbnail OK")
         except Exception:
-            log("⚠ thumbnail failed, fallback copy")
+            log("⚠ thumbnail failed fallback copy")
             shutil.copy(photo_path, thumb_path)
 
         photos_db[sha] = {
@@ -191,8 +240,10 @@ def upload():
             "time": dt.isoformat()
         }
 
-        with open(JSON_FILE, 'w') as f:
-            json.dump(photos_db, f, indent=2)
+        JSON_FILE.write_text(
+            json.dumps(photos_db, indent=2, ensure_ascii=False),
+            encoding='utf-8'
+        )
 
         log(f"✅ done: {file.filename}")
 
