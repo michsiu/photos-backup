@@ -4870,5 +4870,29 @@
     "year": "2026",
     "date": "2026-05-24T11:17:18Z",
     "sha256": "1e73513caffa5d2aaaf420c8aff6eccd071f6f5cdcef14825d23a74291678bda"
+  },
+  "c6eacd7e8d8b96984684d31f98e3bde7d175f5e7dbacc273981e5e600f97c345": {
+    "fileName": "IMG_4804.jpeg",
+    "url": "photos/2026/c6eacd7e8d8b96984684d31f98e3bde7d175f5e7dbacc273981e5e600f97c345.jpeg",
+    "thumbnail": "thumbs/2026/c6eacd7e8d8b96984684d31f98e3bde7d175f5e7dbacc273981e5e600f97c345.jpeg",
+    "year": "2026",
+    "date": "2026-05-24T11:45:51Z",
+    "sha256": "c6eacd7e8d8b96984684d31f98e3bde7d175f5e7dbacc273981e5e600f97c345"
+  },
+  "253436fc35d4e4c8e5943ed502678f157c80732dbcc1f8347eb84b9fd273315b": {
+    "fileName": "IMG_4803.jpeg",
+    "url": "photos/2026/253436fc35d4e4c8e5943ed502678f157c80732dbcc1f8347eb84b9fd273315b.jpeg",
+    "thumbnail": "thumbs/2026/253436fc35d4e4c8e5943ed502678f157c80732dbcc1f8347eb84b9fd273315b.jpeg",
+    "year": "2026",
+    "date": "2026-05-24T11:45:51Z",
+    "sha256": "253436fc35d4e4c8e5943ed502678f157c80732dbcc1f8347eb84b9fd273315b"
+  },
+  "8940376d88880aadeb13bc35db2d64c1da0e88ef5a6c062ee1563caa6e613828": {
+    "fileName": "IMG_4805.png",
+    "url": "photos/2026/8940376d88880aadeb13bc35db2d64c1da0e88ef5a6c062ee1563caa6e613828.png",
+    "thumbnail": "thumbs/2026/8940376d88880aadeb13bc35db2d64c1da0e88ef5a6c062ee1563caa6e613828.png",
+    "year": "2026",
+    "date": "2026-05-24T11:45:51Z",
+    "sha256": "8940376d88880aadeb13bc35db2d64c1da0e88ef5a6c062ee1563caa6e613828"
   }
 }
