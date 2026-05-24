@@ -15,9 +15,11 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -32,7 +34,7 @@ jobs:
           ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
 
       # =========================
-      # START SERVER (PID SAFE)
+      # START SERVER
       # =========================
       - name: Start Flask
         run: |
@@ -45,12 +47,13 @@ jobs:
           echo $! > ngrok.pid
 
       # =========================
-      # WAIT URL
+      # WAIT NGROK URL
       # =========================
-      - name: Wait ngrok URL
+      - name: Wait ngrok
         run: |
           for i in {1..60}; do
-            URL=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'https://[a-zA-Z0-9.-]+' | head -n 1)
+            URL=$(curl -s http://127.0.0.1:4040/api/tunnels \
+              | grep -oE 'https://[a-zA-Z0-9.-]+' | head -n 1)
 
             if [ ! -z "$URL" ]; then
               break
@@ -63,23 +66,27 @@ jobs:
           echo "UPLOAD URL: $URL"
 
       # =========================
-      # AUTO COMMIT (FIXED)
+      # SAVE ARTIFACTS (CLEAN WAY)
       # =========================
-      - name: Commit results
+      - name: Upload logs (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs
+          path: |
+            server.log
+            ngrok.log
+            flask.pid
+            ngrok.pid
+
+      # =========================
+      # ONLY SAVE REAL DATA TO REPO
+      # =========================
+      - name: Commit photos only
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          git add photos.json photos thumbs server.log ngrok.log || true
-          git commit -m "auto update" || true
+          git add photos.json photos thumbs || true
+          git commit -m "auto update photos" || true
 
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git || true
-
-      # =========================
-      # CLEAN EXIT (NO tail freeze)
-      # =========================
-      - name: Wait for shutdown
-        run: |
-          while [ ! -f STOP ]; do
-            sleep 2
-          done
