@@ -10,6 +10,11 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+
+repo = "photos-backup"
+user = "michsiu"
+branch = "main"
+
 BASE_DIR = Path(__file__).resolve().parent
 INCOMING_DIR = BASE_DIR / "incoming"
 INCOMING_DIR.mkdir(exist_ok=True)
@@ -362,4 +367,8 @@ def shutdown():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
+    
+    
+raw_base = """https://raw.githubusercontent.com/{user}/{repo}/{branch}/"""
+
     
