@@ -79,732 +79,1186 @@ def index():
                 <!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Photo Upload</title>
-    <style>
-        :root {
-            --bg: #f0f2f5;
-            --card-bg: #ffffff;
-            --text: #1a1a2e;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border: #e5e7eb;
-            --border-hover: #818cf8;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --primary-light: #eef2ff;
-            --danger: #ef4444;
-            --danger-hover: #dc2626;
-            --log-bg: #0f172a;
-            --log-text: #a7f3d0;
-            --radius-sm: 8px;
-            --radius: 14px;
-            --radius-lg: 20px;
-            --radius-xl: 28px;
-            --shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04);
-            --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.04);
-            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<title>Photo Upload Pro</title>
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            padding: 28px 16px 40px;
-            max-width: 680px;
-            margin: 0 auto;
-            min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
-        }
+<style>
+:root{
+  --bg:#0f172a;
+  --card:#111827;
+  --card2:#1e293b;
+  --line:#334155;
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --blue:#6366f1;
+  --blue2:#4f46e5;
+  --green:#10b981;
+  --red:#ef4444;
+  --yellow:#f59e0b;
+  --shadow:0 10px 40px rgba(0,0,0,.35);
+  --radius:22px;
+}
 
-        .header {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 28px;
-        }
-        .header .icon-wrap {
-            width: 52px;
-            height: 52px;
-            border-radius: var(--radius);
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.8rem;
-            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
-            flex-shrink: 0;
-        }
-        .header h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            color: #1e293b;
-        }
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
 
-        .card {
-            background: var(--card-bg);
-            border-radius: var(--radius-xl);
-            padding: 28px 24px;
-            box-shadow: var(--shadow);
-            margin-bottom: 20px;
-            border: 1px solid var(--border);
-        }
+html,body{
+  height:100%;
+}
 
-        .upload-area {
-            display: block;
-            border: 2px solid #e2e8f0;
-            border-radius: 16px;
-            padding: 40px 20px;
-            text-align: center;
-            background: #ffffff;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 16px;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .upload-area:hover {
-            border-color: #6366f1;
-            background: #f8fafc;
-        }
-        .upload-area.drag-over {
-            border-color: #6366f1 !important;
-            background: #eef2ff !important;
-            box-shadow: inset 0 0 0 4px rgba(99, 102, 241, 0.08);
-        }
-        .upload-area input {
-            display: none;
-        }
-        .upload-icon {
-            font-size: 2.8rem;
-            margin-bottom: 8px;
-            transition: transform var(--transition);
-        }
-        .upload-area:hover .upload-icon {
-            transform: translateY(-3px);
-        }
-        .upload-area.drag-over .upload-icon {
-            transform: translateY(-4px) scale(1.08);
-        }
-        .upload-text {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #334155;
-        }
-        .upload-hint {
-            font-size: 0.9rem;
-            color: #94a3b8;
-            margin-top: 6px;
-        }
+body{
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
 
-        .file-list {
-            margin-bottom: 16px;
-            max-height: 150px;
-            overflow-y: auto;
-            scroll-behavior: smooth;
-        }
-        .file-list::-webkit-scrollbar {
-            width: 5px;
-        }
-        .file-list::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .file-list::-webkit-scrollbar-thumb {
-            background: #d1d5db;
-            border-radius: 10px;
-        }
-        .file-item {
-            padding: 6px 12px;
-            background: #f1f5f9;
-            border-radius: 8px;
-            margin-bottom: 4px;
-            font-size: 0.9rem;
-            color: #475569;
-            word-break: break-all;
-            animation: fadeIn 0.25s ease both;
-        }
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(6px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+  background:
+    radial-gradient(circle at top left,#1e1b4b 0%,transparent 35%),
+    radial-gradient(circle at bottom right,#0f766e 0%,transparent 30%),
+    var(--bg);
 
-        .btn-group {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            outline: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        button:active {
-            transform: scale(0.96);
-        }
-        button:focus-visible {
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
-        }
-        .btn-upload {
-            background: #4f46e5;
-            color: white;
-        }
-        .btn-upload:hover {
-            background: #4338ca;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
-        }
-        .btn-upload:disabled {
-            background: #c7d2fe;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-            pointer-events: none;
-        }
-        .btn-stop {
-            background: #ef4444;
-            color: white;
-        }
-        .btn-stop:hover {
-            background: #dc2626;
-        }
-        .btn-auto {
-            background: #e2e8f0;
-            color: #334155;
-        }
-        .btn-auto.active {
-            background: #6366f1;
-            color: white;
-            animation: pulse-dot 2s infinite;
-        }
-        @keyframes pulse-dot {
-            0%,
-            100% {
-                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3);
-            }
-            50% {
-                box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
-            }
-        }
+  color:var(--text);
+  overflow-x:hidden;
+}
 
-        .progress-section {
-            margin-top: 20px;
-        }
-        .progress-bar-bg {
-            background: #e2e8f0;
-            border-radius: 10px;
-            height: 10px;
-            overflow: hidden;
-        }
-        .progress-bar-fill {
-            background: linear-gradient(90deg, #4f46e5, #6366f1);
-            height: 100%;
-            width: 0%;
-            transition: width 0.3s;
-            border-radius: 10px;
-        }
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-            font-size: 0.9rem;
-            color: #64748b;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .stats span {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .stats .val {
-            font-weight: 600;
-            color: #334155;
-        }
+/* ===== 顶部 ===== */
 
-        #logBox {
-            margin-top: 8px;
-            background: #0f172a;
-            color: #a7f3d0;
-            padding: 16px;
-            border-radius: 16px;
-            height: 260px;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', Consolas, 'SF Mono', monospace;
-            font-size: 0.8rem;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-break: break-all;
-            scroll-behavior: smooth;
-        }
-        #logBox::-webkit-scrollbar {
-            width: 5px;
-        }
-        #logBox::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        #logBox::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 10px;
-        }
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:100;
+  backdrop-filter:blur(20px);
+  background:rgba(15,23,42,.75);
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
 
-        .footer {
-            margin-top: 12px;
-            font-size: 0.85rem;
-            color: #94a3b8;
-            text-align: center;
-        }
-        .footer strong {
-            color: #6366f1;
-            font-weight: 600;
-        }
+.topbar-inner{
+  max-width:1100px;
+  margin:auto;
+  padding:18px 20px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
 
-        .toast {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-120px);
-            background: #1f2937;
-            color: #fff;
-            padding: 12px 22px;
-            border-radius: 30px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            z-index: 999;
-            pointer-events: none;
-            transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-            white-space: nowrap;
-        }
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-        }
-        .toast.success {
-            background: #059669;
-        }
-        .toast.error {
-            background: #dc2626;
-        }
+.brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
 
-        @media (max-width: 520px) {
-            body {
-                padding: 16px 10px 32px;
-            }
-            .card {
-                padding: 20px 16px;
-                border-radius: var(--radius-lg);
-            }
-            .upload-area {
-                padding: 30px 14px 26px;
-            }
-            .upload-text {
-                font-size: 1rem;
-            }
-            .upload-icon {
-                font-size: 2.2rem;
-            }
-            .header h1 {
-                font-size: 1.4rem;
-            }
-            .header .icon-wrap {
-                width: 40px;
-                height: 40px;
-                font-size: 1.4rem;
-                border-radius: 12px;
-            }
-            button {
-                padding: 10px 16px;
-                font-size: 0.85rem;
-                gap: 5px;
-            }
-            .btn-group {
-                gap: 8px;
-            }
-            #logBox {
-                height: 200px;
-                font-size: 0.72rem;
-                padding: 12px 14px;
-            }
-        }
-    </style>
+.brand-icon{
+  width:54px;
+  height:54px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#6366f1,#8b5cf6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.7rem;
+  box-shadow:0 10px 25px rgba(99,102,241,.35);
+}
+
+.brand-text h1{
+  font-size:1.35rem;
+  font-weight:800;
+}
+
+.brand-text p{
+  font-size:.82rem;
+  color:var(--muted);
+  margin-top:2px;
+}
+
+.status-pill{
+  padding:10px 14px;
+  border-radius:999px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.06);
+  color:#cbd5e1;
+  font-size:.88rem;
+  font-weight:600;
+}
+
+/* ===== 主区域 ===== */
+
+.wrapper{
+  max-width:1100px;
+  margin:auto;
+  padding:24px 20px 100px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1.3fr .9fr;
+  gap:24px;
+}
+
+@media(max-width:900px){
+  .grid{
+    grid-template-columns:1fr;
+  }
+}
+
+/* ===== 卡片 ===== */
+
+.card{
+  background:rgba(17,24,39,.82);
+  border:1px solid rgba(255,255,255,.05);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+
+.card-header{
+  padding:22px 24px 18px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.card-title{
+  font-size:1.05rem;
+  font-weight:700;
+}
+
+.card-sub{
+  color:var(--muted);
+  font-size:.82rem;
+  margin-top:3px;
+}
+
+.card-body{
+  padding:24px;
+}
+
+/* ===== 上传区域 ===== */
+
+.upload-area{
+  position:relative;
+  min-height:300px;
+  border-radius:24px;
+  overflow:hidden;
+  cursor:pointer;
+
+  border:2px solid rgba(255,255,255,.08);
+
+  background:
+    linear-gradient(180deg,rgba(99,102,241,.08),transparent),
+    rgba(255,255,255,.02);
+
+  transition:.25s;
+}
+
+.upload-area:hover{
+  transform:translateY(-2px);
+  border-color:rgba(99,102,241,.55);
+  box-shadow:0 20px 50px rgba(99,102,241,.18);
+}
+
+.upload-area.dragging{
+  border-color:#818cf8;
+  background:
+    linear-gradient(180deg,rgba(99,102,241,.18),transparent),
+    rgba(255,255,255,.04);
+}
+
+.upload-inner{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:30px;
+}
+
+.upload-glow{
+  width:110px;
+  height:110px;
+  border-radius:30px;
+  background:
+    radial-gradient(circle at 30% 30%,#a5b4fc,transparent 60%),
+    linear-gradient(135deg,#4f46e5,#7c3aed);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  font-size:3rem;
+  margin-bottom:24px;
+
+  box-shadow:
+    0 20px 60px rgba(99,102,241,.45),
+    inset 0 0 30px rgba(255,255,255,.25);
+}
+
+.upload-title{
+  font-size:1.5rem;
+  font-weight:800;
+}
+
+.upload-desc{
+  margin-top:10px;
+  line-height:1.7;
+  color:#cbd5e1;
+}
+
+.upload-tags{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+  margin-top:22px;
+}
+
+.tag{
+  padding:8px 14px;
+  border-radius:999px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);
+  color:#cbd5e1;
+  font-size:.82rem;
+}
+
+.upload-area input{
+  display:none;
+}
+
+/* ===== 文件区域 ===== */
+
+.file-wrap{
+  margin-top:24px;
+}
+
+.file-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:14px;
+}
+
+.file-count{
+  font-size:.92rem;
+  color:#cbd5e1;
+}
+
+.file-size{
+  font-size:.82rem;
+  color:var(--muted);
+}
+
+.file-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+
+  max-height:320px;
+  overflow:auto;
+  padding-right:4px;
+}
+
+.file-list::-webkit-scrollbar{
+  width:8px;
+}
+
+.file-list::-webkit-scrollbar-thumb{
+  background:#334155;
+  border-radius:999px;
+}
+
+.file-item{
+  display:flex;
+  align-items:center;
+  gap:12px;
+
+  padding:14px;
+  border-radius:18px;
+
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.04),transparent);
+
+  border:1px solid rgba(255,255,255,.05);
+}
+
+.file-icon{
+  width:46px;
+  height:46px;
+  border-radius:14px;
+  background:rgba(99,102,241,.16);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.2rem;
+  flex-shrink:0;
+}
+
+.file-info{
+  flex:1;
+  min-width:0;
+}
+
+.file-name{
+  font-size:.92rem;
+  font-weight:600;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.file-meta{
+  font-size:.78rem;
+  color:var(--muted);
+  margin-top:4px;
+}
+
+/* ===== 按钮 ===== */
+
+.action-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:14px;
+  margin-top:26px;
+}
+
+.btn{
+  border:none;
+  border-radius:18px;
+  padding:15px 22px;
+  cursor:pointer;
+  font-size:.96rem;
+  font-weight:700;
+  transition:.2s;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.btn:hover{
+  transform:translateY(-2px);
+}
+
+.btn-primary{
+  background:linear-gradient(135deg,#6366f1,#4f46e5);
+  color:white;
+  box-shadow:0 12px 30px rgba(99,102,241,.35);
+}
+
+.btn-primary:hover{
+  filter:brightness(1.05);
+}
+
+.btn-danger{
+  background:linear-gradient(135deg,#ef4444,#dc2626);
+  color:white;
+  box-shadow:0 12px 30px rgba(239,68,68,.28);
+}
+
+.btn-secondary{
+  background:rgba(255,255,255,.06);
+  color:#e2e8f0;
+  border:1px solid rgba(255,255,255,.08);
+}
+
+.btn-secondary.active{
+  background:linear-gradient(135deg,#10b981,#059669);
+  color:white;
+  border:none;
+  box-shadow:0 12px 30px rgba(16,185,129,.25);
+}
+
+/* ===== 统计 ===== */
+
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px;
+}
+
+.stat-box{
+  padding:18px;
+  border-radius:20px;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.04),transparent);
+
+  border:1px solid rgba(255,255,255,.05);
+}
+
+.stat-label{
+  color:var(--muted);
+  font-size:.8rem;
+}
+
+.stat-value{
+  margin-top:10px;
+  font-size:1.6rem;
+  font-weight:800;
+}
+
+.progress-wrap{
+  margin-top:22px;
+}
+
+.progress-top{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:10px;
+  font-size:.88rem;
+}
+
+.progress-bar{
+  height:14px;
+  background:rgba(255,255,255,.06);
+  border-radius:999px;
+  overflow:hidden;
+}
+
+.progress-fill{
+  height:100%;
+  width:0%;
+  border-radius:999px;
+  background:
+    linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4);
+
+  transition:width .25s;
+}
+
+/* ===== 日志 ===== */
+
+.log-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:16px;
+}
+
+.log-status{
+  font-size:.82rem;
+  color:#cbd5e1;
+}
+
+.log-box{
+  background:#020617;
+  border:1px solid rgba(255,255,255,.06);
+
+  border-radius:20px;
+  height:520px;
+  overflow:auto;
+
+  padding:20px;
+
+  font-family:
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+
+  font-size:.8rem;
+  line-height:1.7;
+
+  color:#86efac;
+}
+
+.log-box::-webkit-scrollbar{
+  width:8px;
+}
+
+.log-box::-webkit-scrollbar-thumb{
+  background:#334155;
+  border-radius:999px;
+}
+
+.log-line{
+  margin-bottom:4px;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+/* ===== 底部 ===== */
+
+.footer{
+  margin-top:28px;
+  text-align:center;
+  color:#94a3b8;
+  font-size:.86rem;
+  line-height:1.7;
+}
+
+/* ===== 动画 ===== */
+
+@keyframes pulse{
+  0%{transform:scale(1)}
+  50%{transform:scale(1.04)}
+  100%{transform:scale(1)}
+}
+
+.uploading .upload-glow{
+  animation:pulse 1.6s infinite;
+}
+</style>
 </head>
+
 <body>
 
-    <!-- Toast 提示 -->
-    <div class="toast" id="toast"></div>
+<div class="topbar">
+  <div class="topbar-inner">
 
-    <div class="header">
-        <div class="icon-wrap">📷</div>
-        <h1>Photo Upload</h1>
+    <div class="brand">
+      <div class="brand-icon">📷</div>
+
+      <div class="brand-text">
+        <h1>Photo Upload Pro</h1>
+        <p>高性能图片上传与自动处理系统</p>
+      </div>
     </div>
 
-    <div class="card">
-        <!-- 上传区域 -->
-        <label class="upload-area" id="uploadArea">
-            <div class="upload-icon">⇧</div>
-            <div class="upload-text">点击或拖拽文件到此处</div>
-            <div class="upload-hint">支持 JPG, PNG, GIF, WEBP, ZIP</div>
-            <input type="file" id="fileInput" multiple accept="image/*,.zip" />
-        </label>
+    <div class="status-pill" id="globalStatus">
+      等待上传
+    </div>
 
-        <!-- 已选文件列表 -->
-        <div class="file-list" id="fileList"></div>
+  </div>
+</div>
 
-        <div class="btn-group">
-            <button class="btn-upload" id="btnUpload">⬆ 开始上传</button>
-            <button class="btn-stop" id="btnStop">⏹ 停止服务</button>
-            <button class="btn-auto" id="autoBtn">📋 自动日志</button>
+<div class="wrapper">
+
+  <div class="grid">
+
+    <!-- 左侧 -->
+    <div>
+
+      <!-- 上传 -->
+      <div class="card">
+
+        <div class="card-header">
+          <div>
+            <div class="card-title">文件上传</div>
+            <div class="card-sub">支持拖拽、批量上传、ZIP 压缩包</div>
+          </div>
         </div>
 
-        <!-- 进度区域 -->
-        <div class="progress-section" id="progressSection" style="display:none;">
-            <div class="progress-bar-bg">
-                <div class="progress-bar-fill" id="progressBar"></div>
+        <div class="card-body">
+
+          <label class="upload-area" id="uploadArea">
+
+            <div class="upload-inner">
+
+              <div class="upload-glow">
+                ⇧
+              </div>
+
+              <div class="upload-title">
+                点击或拖拽文件到此处
+              </div>
+
+              <div class="upload-desc">
+                支持 JPG / PNG / GIF / WEBP / ZIP<br>
+                可同时上传多个文件
+              </div>
+
+              <div class="upload-tags">
+                <div class="tag">JPG</div>
+                <div class="tag">PNG</div>
+                <div class="tag">GIF</div>
+                <div class="tag">WEBP</div>
+                <div class="tag">ZIP</div>
+              </div>
+
             </div>
-            <div class="stats">
-                <span>📦 进度 <span class="val" id="taskCounter">0/0</span></span>
-                <span>⚡ 速度 <span class="val" id="uploadSpeed">—</span></span>
+
+            <input
+              type="file"
+              id="fileInput"
+              multiple
+              accept="image/*,.zip"
+            />
+
+          </label>
+
+          <!-- 文件 -->
+          <div class="file-wrap">
+
+            <div class="file-head">
+              <div class="file-count" id="fileCount">
+                已选择 0 个文件
+              </div>
+
+              <div class="file-size" id="fileSize">
+                0 MB
+              </div>
             </div>
+
+            <div class="file-list" id="fileList"></div>
+
+          </div>
+
+          <!-- 按钮 -->
+          <div class="action-row">
+
+            <button class="btn btn-primary" onclick="startUpload()">
+              ⬆ 开始上传
+            </button>
+
+            <button class="btn btn-danger" onclick="shutdownServer()">
+              ⏹ 停止服务
+            </button>
+
+            <button
+              class="btn btn-secondary"
+              id="autoBtn"
+              onclick="toggleAuto()"
+            >
+              📋 自动日志
+            </button>
+
+          </div>
+
         </div>
+      </div>
+
     </div>
 
-    <!-- 日志 -->
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <span style="font-weight:600;">📃 日志</span>
-            <span style="font-size:0.8rem; color:#64748b;" id="logStatus">就绪</span>
+    <!-- 右侧 -->
+    <div>
+
+      <!-- 统计 -->
+      <div class="card">
+
+        <div class="card-header">
+          <div>
+            <div class="card-title">上传状态</div>
+            <div class="card-sub">实时任务监控</div>
+          </div>
         </div>
-        <pre id="logBox"></pre>
+
+        <div class="card-body">
+
+          <div class="stats-grid">
+
+            <div class="stat-box">
+              <div class="stat-label">总文件</div>
+              <div class="stat-value" id="statTotal">0</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-label">已完成</div>
+              <div class="stat-value" id="statDone">0</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-label">上传速度</div>
+              <div class="stat-value" id="statSpeed">—</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-label">成功率</div>
+              <div class="stat-value" id="statSuccess">0%</div>
+            </div>
+
+          </div>
+
+          <div class="progress-wrap">
+
+            <div class="progress-top">
+              <span id="progressText">等待开始</span>
+              <span id="progressPercent">0%</span>
+            </div>
+
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 日志 -->
+      <div class="card" style="margin-top:24px;">
+
+        <div class="card-header">
+          <div>
+            <div class="card-title">系统日志</div>
+            <div class="card-sub">实时输出运行信息</div>
+          </div>
+        </div>
+
+        <div class="card-body">
+
+          <div class="log-top">
+            <div class="log-status" id="logStatus">
+              就绪
+            </div>
+
+            <button
+              class="btn btn-secondary"
+              style="padding:10px 14px;font-size:.82rem;"
+              onclick="clearLogs()"
+            >
+              清空日志
+            </button>
+          </div>
+
+          <div class="log-box" id="logBox"></div>
+
+        </div>
+
+      </div>
+
     </div>
 
-    <div class="footer">
-        上传完成后点击 <strong>停止服务</strong>，系统将自动处理并提交到仓库。
-    </div>
+  </div>
 
-    <script>
-        (function() {
-            // ── 核心变量 ──
-            let auto = false,
-                timer = null;
-            let totalFiles = 0,
-                finishedFiles = 0;
-            let startTime = 0;
-            let isUploading = false;
+  <div class="footer">
+    上传完成后点击 <strong>停止服务</strong><br>
+    系统将自动处理并提交到仓库
+  </div>
 
-            // ── DOM 引用 ──
-            const progressSection = document.getElementById('progressSection');
-            const progressBar = document.getElementById('progressBar');
-            const taskCounter = document.getElementById('taskCounter');
-            const uploadSpeed = document.getElementById('uploadSpeed');
-            const logStatus = document.getElementById('logStatus');
-            const fileInput = document.getElementById('fileInput');
-            const fileList = document.getElementById('fileList');
-            const btnUpload = document.getElementById('btnUpload');
-            const btnStop = document.getElementById('btnStop');
-            const autoBtn = document.getElementById('autoBtn');
-            const uploadArea = document.getElementById('uploadArea');
-            const logBox = document.getElementById('logBox');
-            const toast = document.getElementById('toast');
+</div>
 
-            // ── Toast 提示 ──
-            let toastTimer;
+<script>
 
-            function showToast(msg, type) {
-                if (!toast) return;
-                clearTimeout(toastTimer);
-                toast.textContent = msg;
-                toast.className = 'toast ' + (type || '') + ' show';
-                toastTimer = setTimeout(function() {
-                    toast.classList.remove('show');
-                }, 2200);
-            }
+let auto = false;
+let timer = null;
 
-            // ── 日志函数 ──
-            function log(msg) {
-                if (!logBox) return;
-                logBox.textContent += msg + '\n';
-                logBox.scrollTop = logBox.scrollHeight;
-            }
+let totalFiles = 0;
+let finishedFiles = 0;
+let successFiles = 0;
+let failedFiles = 0;
 
-            // ── 清空并初始化日志 ──
-            if (logBox) {
-                logBox.textContent = '';
-            }
-            log('📋 就绪 — 请选择文件或拖拽到上方区域');
+let startTime = 0;
 
-            // ── 更新进度 ──
-            function updateProgress() {
-                const pct = totalFiles > 0 ? Math.round((finishedFiles / totalFiles) * 100) : 0;
-                if (progressBar) progressBar.style.width = pct + '%';
-                if (taskCounter) taskCounter.innerText = finishedFiles + '/' + totalFiles;
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
 
-                if (finishedFiles > 0 && startTime > 0) {
-                    const elapsed = (Date.now() - startTime) / 1000;
-                    const speed = elapsed > 0 ? (finishedFiles / elapsed).toFixed(2) : '—';
-                    if (uploadSpeed) uploadSpeed.innerText = speed + ' 个/秒';
-                } else {
-                    if (uploadSpeed) uploadSpeed.innerText = '—';
-                }
+const fileList = document.getElementById('fileList');
+const fileCount = document.getElementById('fileCount');
+const fileSize = document.getElementById('fileSize');
 
-                if (logStatus) {
-                    if (totalFiles > 0 && finishedFiles === totalFiles) {
-                        logStatus.innerText = '全部上传完成 ✅';
-                    } else if (totalFiles > 0 && finishedFiles > 0) {
-                        logStatus.innerText = '上传中 ' + finishedFiles + '/' + totalFiles;
-                    } else if (totalFiles > 0) {
-                        logStatus.innerText = '待上传 ' + totalFiles + ' 个';
-                    } else {
-                        logStatus.innerText = '就绪';
-                    }
-                }
-            }
+const progressFill = document.getElementById('progressFill');
+const progressPercent = document.getElementById('progressPercent');
+const progressText = document.getElementById('progressText');
 
-            // ── 渲染文件列表 ──
-            function renderFileList(files) {
-                if (!fileList) return;
-                fileList.innerHTML = '';
-                if (!files || files.length === 0) {
-                    log('未选择文件');
-                    if (progressSection) progressSection.style.display = 'none';
-                    totalFiles = 0;
-                    finishedFiles = 0;
-                    startTime = 0;
-                    updateProgress();
-                    return;
-                }
-                log('已选择 ' + files.length + ' 个文件:');
-                for (let i = 0; i < files.length; i++) {
-                    const f = files[i];
-                    log('  · ' + f.name);
-                    const item = document.createElement('div');
-                    item.className = 'file-item';
-                    item.textContent = f.name;
-                    fileList.appendChild(item);
-                }
-                // 显示进度区域并重置
-                if (progressSection) progressSection.style.display = 'block';
-                totalFiles = files.length;
-                finishedFiles = 0;
-                startTime = 0;
-                updateProgress();
-            }
+const statTotal = document.getElementById('statTotal');
+const statDone = document.getElementById('statDone');
+const statSpeed = document.getElementById('statSpeed');
+const statSuccess = document.getElementById('statSuccess');
 
-            // ── 监听文件选择 ──
-            fileInput.addEventListener('change', function() {
-                const files = fileInput.files;
-                renderFileList(files);
-            });
+const logBox = document.getElementById('logBox');
+const logStatus = document.getElementById('logStatus');
+const globalStatus = document.getElementById('globalStatus');
 
-            // ── 拖拽支持 ──
-            uploadArea.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadArea.classList.add('drag-over');
-            });
-            uploadArea.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                uploadArea.classList.remove('drag-over');
-            });
-            uploadArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadArea.classList.remove('drag-over');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    // 通过 DataTransfer 设置文件并手动触发 change 事件
-                    const dt = new DataTransfer();
-                    for (let i = 0; i < files.length; i++) {
-                        dt.items.add(files[i]);
-                    }
-                    fileInput.files = dt.files;
-                    // 手动触发 change 事件，确保监听器执行
-                    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            });
+function formatSize(bytes){
+  if(bytes < 1024) return bytes + ' B';
 
-            // ── 开始上传 ──
-            async function startUpload() {
-                if (isUploading) {
-                    showToast('上传已在进行中', '');
-                    return;
-                }
-                const files = fileInput.files;
-                if (!files || files.length === 0) {
-                    log('⚠ 请先选择文件');
-                    showToast('请先选择文件', 'error');
-                    return;
-                }
+  const kb = bytes / 1024;
+  if(kb < 1024) return kb.toFixed(1) + ' KB';
 
-                isUploading = true;
-                if (btnUpload) {
-                    btnUpload.disabled = true;
-                    btnUpload.textContent = '⏳ 上传中...';
-                }
-                totalFiles = files.length;
-                finishedFiles = 0;
-                startTime = Date.now();
-                if (progressSection) progressSection.style.display = 'block';
-                updateProgress();
-                log('🚀 开始上传 ' + totalFiles + ' 个文件...');
+  const mb = kb / 1024;
+  if(mb < 1024) return mb.toFixed(1) + ' MB';
 
-                const tasks = Array.from(files).map(async function(f) {
-                    const fd = new FormData();
-                    fd.append('image', f);
-                    try {
-                        const resp = await fetch('/upload', { method: 'POST', body: fd });
-                        const json = await resp.json();
-                        if (json.ok) {
-                            finishedFiles++;
-                            updateProgress();
-                            log('✔ ' + f.name);
-                        } else {
-                            finishedFiles++;
-                            updateProgress();
-                            log('❌ ' + f.name + ' 失败: ' + (json.error || '未知错误'));
-                        }
-                    } catch (e) {
-                        finishedFiles++;
-                        updateProgress();
-                        log('❌ ' + f.name + ' 网络错误: ' + (e.message || e));
-                    }
-                });
+  const gb = mb / 1024;
+  return gb.toFixed(2) + ' GB';
+}
 
-                await Promise.all(tasks);
-                isUploading = false;
-                if (btnUpload) {
-                    btnUpload.disabled = false;
-                    btnUpload.textContent = '⬆ 开始上传';
-                }
-                log('✅ 批次上传结束');
-                if (finishedFiles === totalFiles) {
-                    log('🎉 所有文件上传成功，可以点击"停止服务"');
-                    showToast('全部上传完成 🎉', 'success');
-                } else {
-                    showToast(finishedFiles + '/' + totalFiles + ' 完成', '');
-                }
-            }
+function log(msg){
 
-            // ── 停止服务 ──
-            async function shutdownServer() {
-                log('🛑 正在停止服务...');
-                if (btnStop) {
-                    btnStop.textContent = '⏳ 停止中...';
-                    btnStop.style.pointerEvents = 'none';
-                    btnStop.style.opacity = '0.7';
-                }
-                try {
-                    const resp = await fetch('/shutdown', { method: 'POST' });
-                    const json = await resp.json();
-                    log('✔ 服务已停止: ' + JSON.stringify(json));
-                    if (logStatus) logStatus.innerText = '服务已停止 – 正在处理照片';
-                    showToast('服务已停止', 'success');
-                } catch (e) {
-                    log('❌ 停止失败: ' + (e.message || e));
-                    showToast('停止失败', 'error');
-                } finally {
-                    if (btnStop) {
-                        btnStop.textContent = '⏹ 停止服务';
-                        btnStop.style.pointerEvents = 'auto';
-                        btnStop.style.opacity = '1';
-                    }
-                }
-                isUploading = false;
-                if (btnUpload) {
-                    btnUpload.disabled = false;
-                    btnUpload.textContent = '⬆ 开始上传';
-                }
-            }
+  const line = document.createElement('div');
+  line.className = 'log-line';
 
-            // ── 自动日志 ──
-            function toggleAuto() {
-                auto = !auto;
-                if (auto) {
-                    if (autoBtn) {
-                        autoBtn.classList.add('active');
-                        autoBtn.innerHTML = '📋 自动日志 (开)';
-                    }
-                    log('[AUTO] 开始轮询日志...');
-                    timer = setInterval(async function() {
-                        try {
-                            const r = await fetch('/logs');
-                            const j = await r.json();
-                            log('[AUTO] ' + JSON.stringify(j));
-                        } catch (e) {
-                            log('[AUTO ERR] ' + (e.message || e));
-                        }
-                    }, 3000);
-                    showToast('自动日志已开启');
-                } else {
-                    if (autoBtn) {
-                        autoBtn.classList.remove('active');
-                        autoBtn.innerHTML = '📋 自动日志';
-                    }
-                    clearInterval(timer);
-                    timer = null;
-                    log('[AUTO] 停止轮询');
-                    showToast('自动日志已关闭');
-                }
-            }
+  const now = new Date();
+  const time =
+    now.toLocaleTimeString();
 
-            // ── 页面卸载清理 ──
-            window.addEventListener('beforeunload', function() {
-                if (timer) clearInterval(timer);
-            });
+  line.textContent = '[' + time + '] ' + msg;
 
-            // ── 暴露到全局作用域，供 onclick 调用 ──
-            window.startUpload = startUpload;
-            window.shutdownServer = shutdownServer;
-            window.toggleAuto = toggleAuto;
+  logBox.appendChild(line);
 
-            // ── 按钮事件绑定（双重保障） ──
-            if (btnUpload) {
-                btnUpload.addEventListener('click', function(e) {
-                    // 如果 onclick 未触发，这里作为后备
-                    // 但为了避免重复执行，这里不额外调用，仅保留 onclick
-                });
-                // 同时绑定原生事件以防 onclick 失效
-                btnUpload.onclick = function(e) {
-                    e.preventDefault();
-                    startUpload();
-                };
-            }
-            if (btnStop) {
-                btnStop.onclick = function(e) {
-                    e.preventDefault();
-                    shutdownServer();
-                };
-            }
-            if (autoBtn) {
-                autoBtn.onclick = function(e) {
-                    e.preventDefault();
-                    toggleAuto();
-                };
-            }
+  logBox.scrollTop = logBox.scrollHeight;
+}
 
-            // ── 初始化完成 ──
-            log('✅ 页面就绪，等待操作...');
-        })();
-    </script>
+function clearLogs(){
+  logBox.innerHTML = '';
+  log('日志已清空');
+}
+
+function refreshStats(){
+
+  statTotal.textContent = totalFiles;
+  statDone.textContent = finishedFiles;
+
+  const percent =
+    totalFiles
+      ? Math.round(finishedFiles / totalFiles * 100)
+      : 0;
+
+  progressFill.style.width = percent + '%';
+  progressPercent.textContent = percent + '%';
+
+  if(totalFiles > 0){
+    progressText.textContent =
+      finishedFiles + ' / ' + totalFiles;
+  }else{
+    progressText.textContent = '等待开始';
+  }
+
+  if(startTime && finishedFiles > 0){
+
+    const sec =
+      (Date.now() - startTime) / 1000;
+
+    const speed =
+      (finishedFiles / sec).toFixed(2);
+
+    statSpeed.textContent =
+      speed + '/s';
+  }
+
+  const successRate =
+    totalFiles
+      ? Math.round(successFiles / totalFiles * 100)
+      : 0;
+
+  statSuccess.textContent =
+    successRate + '%';
+
+  if(finishedFiles === totalFiles && totalFiles > 0){
+
+    globalStatus.textContent = '上传完成';
+    logStatus.textContent = '全部上传完成 ✅';
+
+  }else if(totalFiles > 0){
+
+    globalStatus.textContent =
+      '上传中 ' +
+      finishedFiles +
+      '/' +
+      totalFiles;
+
+    logStatus.textContent =
+      '上传中...';
+  }
+}
+
+function buildFileList(files){
+
+  fileList.innerHTML = '';
+
+  let total = 0;
+
+  for(const f of files){
+
+    total += f.size || 0;
+
+    const item =
+      document.createElement('div');
+
+    item.className = 'file-item';
+
+    const ext =
+      f.name.split('.').pop().toUpperCase();
+
+    item.innerHTML = `
+      <div class="file-icon">
+        📄
+      </div>
+
+      <div class="file-info">
+
+        <div class="file-name">
+          ${f.name}
+        </div>
+
+        <div class="file-meta">
+          ${ext} · ${formatSize(f.size || 0)}
+        </div>
+
+      </div>
+    `;
+
+    fileList.appendChild(item);
+  }
+
+  fileCount.textContent =
+    '已选择 ' + files.length + ' 个文件';
+
+  fileSize.textContent =
+    formatSize(total);
+}
+
+fileInput.addEventListener('change', ()=>{
+
+  const files = fileInput.files;
+
+  if(!files.length){
+
+    fileList.innerHTML = '';
+
+    fileCount.textContent =
+      '已选择 0 个文件';
+
+    fileSize.textContent = '0 MB';
+
+    log('未选择文件');
+
+    return;
+  }
+
+  buildFileList(files);
+
+  log('已选择 ' + files.length + ' 个文件');
+
+  for(const f of files){
+    log('  · ' + f.name);
+  }
+});
+
+/* ===== 拖拽 ===== */
+
+uploadArea.addEventListener('dragover',(e)=>{
+  e.preventDefault();
+  uploadArea.classList.add('dragging');
+});
+
+uploadArea.addEventListener('dragleave',()=>{
+  uploadArea.classList.remove('dragging');
+});
+
+uploadArea.addEventListener('drop',(e)=>{
+
+  e.preventDefault();
+
+  uploadArea.classList.remove('dragging');
+
+  const files = e.dataTransfer.files;
+
+  fileInput.files = files;
+
+  fileInput.dispatchEvent(
+    new Event('change')
+  );
+});
+
+/* ===== 上传 ===== */
+
+async function startUpload(){
+
+  const files = fileInput.files;
+
+  if(!files.length){
+
+    log('⚠ 请先选择文件');
+
+    return;
+  }
+
+  totalFiles = files.length;
+  finishedFiles = 0;
+  successFiles = 0;
+  failedFiles = 0;
+
+  startTime = Date.now();
+
+  document.body.classList.add('uploading');
+
+  refreshStats();
+
+  globalStatus.textContent =
+    '准备上传';
+
+  log('🚀 开始上传 ' + totalFiles + ' 个文件');
+
+  const tasks =
+    Array.from(files).map(async(file)=>{
+
+      const fd = new FormData();
+
+      fd.append('image',file);
+
+      try{
+
+        const resp = await fetch(
+          '/upload',
+          {
+            method:'POST',
+            body:fd
+          }
+        );
+
+        const json = await resp.json();
+
+        finishedFiles++;
+
+        if(json.ok){
+
+          successFiles++;
+
+          log('✔ ' + file.name);
+
+        }else{
+
+          failedFiles++;
+
+          log(
+            '❌ ' +
+            file.name +
+            ' 失败: ' +
+            (json.error || '未知错误')
+          );
+        }
+
+        refreshStats();
+
+      }catch(e){
+
+        finishedFiles++;
+        failedFiles++;
+
+        refreshStats();
+
+        log(
+          '❌ ' +
+          file.name +
+          ' 网络错误: ' +
+          e
+        );
+      }
+    });
+
+  await Promise.all(tasks);
+
+  document.body.classList.remove('uploading');
+
+  log('✅ 批次上传结束');
+
+  if(successFiles === totalFiles){
+
+    log('🎉 所有文件上传成功');
+    log('👉 现在可以点击“停止服务”');
+
+  }else{
+
+    log(
+      '⚠ 成功 ' +
+      successFiles +
+      ' 个，失败 ' +
+      failedFiles +
+      ' 个'
+    );
+  }
+}
+
+/* ===== 停止服务 ===== */
+
+async function shutdownServer(){
+
+  log('🛑 正在停止服务...');
+
+  globalStatus.textContent =
+    '停止中';
+
+  try{
+
+    const resp =
+      await fetch(
+        '/shutdown',
+        {
+          method:'POST'
+        }
+      );
+
+    const json =
+      await resp.json();
+
+    log(
+      '✔ 服务已停止: ' +
+      JSON.stringify(json)
+    );
+
+    logStatus.textContent =
+      '服务已停止';
+
+    globalStatus.textContent =
+      '已停止';
+
+  }catch(e){
+
+    log('❌ 停止失败: ' + e);
+
+    globalStatus.textContent =
+      '停止失败';
+  }
+}
+
+/* ===== 自动日志 ===== */
+
+function toggleAuto(){
+
+  auto = !auto;
+
+  const btn =
+    document.getElementById('autoBtn');
+
+  if(auto){
+
+    btn.classList.add('active');
+
+    btn.innerHTML =
+      '📋 自动日志 (开)';
+
+    log('📡 自动日志已开启');
+
+    timer = setInterval(async()=>{
+
+      try{
+
+        const r =
+          await fetch('/logs');
+
+        const j =
+          await r.json();
+
+        log(
+          '[AUTO] ' +
+          JSON.stringify(j)
+        );
+
+      }catch(e){
+
+        log(
+          '[AUTO ERR] ' + e
+        );
+      }
+
+    },3000);
+
+  }else{
+
+    btn.classList.remove('active');
+
+    btn.innerHTML =
+      '📋 自动日志';
+
+    clearInterval(timer);
+
+    log('📴 自动日志已关闭');
+  }
+}
+
+/* ===== 初始化 ===== */
+
+log('📋 系统初始化完成');
+log('📂 请拖拽文件或点击上传区域');
+
+</script>
 </body>
 </html>
                 
