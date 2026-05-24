@@ -75,7 +75,8 @@ def extract_zip(zip_path: Path):
 @app.route("/")
 def index():
     return """
-    <!doctype html>
+
+                <!doctype html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
@@ -93,10 +94,8 @@ def index():
             --primary: #6366f1;
             --primary-hover: #4f46e5;
             --primary-light: #eef2ff;
-            --primary-shadow: rgba(99, 102, 241, 0.25);
             --danger: #ef4444;
             --danger-hover: #dc2626;
-            --success: #10b981;
             --log-bg: #0f172a;
             --log-text: #a7f3d0;
             --radius-sm: 8px;
@@ -123,7 +122,6 @@ def index():
             margin: 0 auto;
             min-height: 100vh;
             -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
         }
 
         .header {
@@ -158,10 +156,8 @@ def index():
             box-shadow: var(--shadow);
             margin-bottom: 20px;
             border: 1px solid var(--border);
-            transition: box-shadow var(--transition);
         }
 
-        /* 上传区域 - 实线边框，美观 */
         .upload-area {
             display: block;
             border: 2px solid #e2e8f0;
@@ -174,7 +170,6 @@ def index():
             margin-bottom: 16px;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
-            position: relative;
         }
         .upload-area:hover {
             border-color: #6366f1;
@@ -183,7 +178,7 @@ def index():
         .upload-area.drag-over {
             border-color: #6366f1 !important;
             background: #eef2ff !important;
-            box-shadow: inset 0 0 0 4px rgba(99, 102, 241, 0.06);
+            box-shadow: inset 0 0 0 4px rgba(99, 102, 241, 0.08);
         }
         .upload-area input {
             display: none;
@@ -210,7 +205,6 @@ def index():
             margin-top: 6px;
         }
 
-        /* 文件列表 */
         .file-list {
             margin-bottom: 16px;
             max-height: 150px;
@@ -387,7 +381,6 @@ def index():
             font-weight: 600;
         }
 
-        /* Toast */
         .toast {
             position: fixed;
             top: 20px;
@@ -459,7 +452,7 @@ def index():
 </head>
 <body>
 
-    <!-- Toast -->
+    <!-- Toast 提示 -->
     <div class="toast" id="toast"></div>
 
     <div class="header">
@@ -468,7 +461,7 @@ def index():
     </div>
 
     <div class="card">
-        <!-- 上传区域（实线边框，美观） -->
+        <!-- 上传区域 -->
         <label class="upload-area" id="uploadArea">
             <div class="upload-icon">⇧</div>
             <div class="upload-text">点击或拖拽文件到此处</div>
@@ -480,9 +473,9 @@ def index():
         <div class="file-list" id="fileList"></div>
 
         <div class="btn-group">
-            <button class="btn-upload" id="btnUpload" onclick="startUpload()">⬆ 开始上传</button>
-            <button class="btn-stop" id="btnStop" onclick="shutdownServer()">⏹ 停止服务</button>
-            <button class="btn-auto" id="autoBtn" onclick="toggleAuto()">📋 自动日志</button>
+            <button class="btn-upload" id="btnUpload">⬆ 开始上传</button>
+            <button class="btn-stop" id="btnStop">⏹ 停止服务</button>
+            <button class="btn-auto" id="autoBtn">📋 自动日志</button>
         </div>
 
         <!-- 进度区域 -->
@@ -511,233 +504,309 @@ def index():
     </div>
 
     <script>
-        // ── 核心变量（保持与原逻辑一致） ──
-        let auto = false,
-            timer;
-        let totalFiles = 0,
-            finishedFiles = 0;
-        let startTime = 0;
-        let isUploading = false;
+        (function() {
+            // ── 核心变量 ──
+            let auto = false,
+                timer = null;
+            let totalFiles = 0,
+                finishedFiles = 0;
+            let startTime = 0;
+            let isUploading = false;
 
-        const progressSection = document.getElementById('progressSection');
-        const progressBar = document.getElementById('progressBar');
-        const taskCounter = document.getElementById('taskCounter');
-        const uploadSpeed = document.getElementById('uploadSpeed');
-        const logStatus = document.getElementById('logStatus');
-        const fileInput = document.getElementById('fileInput');
-        const fileList = document.getElementById('fileList');
-        const btnUpload = document.getElementById('btnUpload');
-        const btnStop = document.getElementById('btnStop');
-        const autoBtn = document.getElementById('autoBtn');
-        const uploadArea = document.getElementById('uploadArea');
-        const logBox = document.getElementById('logBox');
-        const toast = document.getElementById('toast');
+            // ── DOM 引用 ──
+            const progressSection = document.getElementById('progressSection');
+            const progressBar = document.getElementById('progressBar');
+            const taskCounter = document.getElementById('taskCounter');
+            const uploadSpeed = document.getElementById('uploadSpeed');
+            const logStatus = document.getElementById('logStatus');
+            const fileInput = document.getElementById('fileInput');
+            const fileList = document.getElementById('fileList');
+            const btnUpload = document.getElementById('btnUpload');
+            const btnStop = document.getElementById('btnStop');
+            const autoBtn = document.getElementById('autoBtn');
+            const uploadArea = document.getElementById('uploadArea');
+            const logBox = document.getElementById('logBox');
+            const toast = document.getElementById('toast');
 
-        // ── Toast 提示 ──────────────────────
-        let toastTimer;
+            // ── Toast 提示 ──
+            let toastTimer;
 
-        function showToast(msg, type) {
-            clearTimeout(toastTimer);
-            toast.textContent = msg;
-            toast.className = 'toast ' + (type || '') + ' show';
-            toastTimer = setTimeout(function() {
-                toast.classList.remove('show');
-            }, 2200);
-        }
-
-        // ── 日志函数（保持原有追加逻辑） ──
-        function log(msg) {
-            logBox.textContent += msg + '\n';
-            logBox.scrollTop = logBox.scrollHeight;
-        }
-
-        // 初始提示
-        log('📋 请选择文件或拖拽到上方区域');
-
-        // ── 监听文件选择（包括拖拽后自动设置） ──
-        fileInput.addEventListener('change', function() {
-            const files = fileInput.files;
-            fileList.innerHTML = '';
-            if (files.length === 0) {
-                log('未选择文件');
-                return;
-            }
-            log('已选择 ' + files.length + ' 个文件:');
-            for (let i = 0; i < files.length; i++) {
-                const f = files[i];
-                log('  · ' + f.name);
-                const item = document.createElement('div');
-                item.className = 'file-item';
-                item.textContent = f.name;
-                fileList.appendChild(item);
-            }
-            // 重置进度状态
-            totalFiles = files.length;
-            finishedFiles = 0;
-            startTime = 0;
-            updateProgress();
-            if (files.length > 0) {
-                progressSection.style.display = 'block';
-            }
-        });
-
-        // ── 进度更新 ────────────────────────
-        function updateProgress() {
-            const pct = totalFiles > 0 ? (finishedFiles / totalFiles * 100) : 0;
-            progressBar.style.width = pct + '%';
-            taskCounter.innerText = finishedFiles + '/' + totalFiles;
-
-            if (finishedFiles > 0 && startTime > 0) {
-                const elapsed = (Date.now() - startTime) / 1000;
-                const speed = (finishedFiles / elapsed).toFixed(2);
-                uploadSpeed.innerText = speed + ' 个/秒';
-            } else {
-                uploadSpeed.innerText = '—';
+            function showToast(msg, type) {
+                if (!toast) return;
+                clearTimeout(toastTimer);
+                toast.textContent = msg;
+                toast.className = 'toast ' + (type || '') + ' show';
+                toastTimer = setTimeout(function() {
+                    toast.classList.remove('show');
+                }, 2200);
             }
 
-            if (totalFiles > 0 && finishedFiles === totalFiles) {
-                logStatus.innerText = '全部上传完成 ✅';
-            } else if (totalFiles > 0) {
-                logStatus.innerText = '上传中 ' + finishedFiles + '/' + totalFiles;
-            } else {
-                logStatus.innerText = '就绪';
-            }
-        }
-
-        // ── 拖拽支持 ────────────────────────
-        uploadArea.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            uploadArea.classList.add('drag-over');
-        });
-        uploadArea.addEventListener('dragleave', function() {
-            uploadArea.classList.remove('drag-over');
-        });
-        uploadArea.addEventListener('drop', function(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                fileInput.files = files; // 触发 change 事件
-            }
-        });
-
-        // ── 开始上传 ────────────────────────
-        async function startUpload() {
-            if (isUploading) {
-                showToast('上传已在进行中', '');
-                return;
-            }
-            const files = fileInput.files;
-            if (!files.length) {
-                log('⚠ 请先选择文件');
-                showToast('请先选择文件', 'error');
-                return;
+            // ── 日志函数 ──
+            function log(msg) {
+                if (!logBox) return;
+                logBox.textContent += msg + '\n';
+                logBox.scrollTop = logBox.scrollHeight;
             }
 
-            isUploading = true;
-            btnUpload.disabled = true;
-            btnUpload.textContent = '⏳ 上传中...';
-            totalFiles = files.length;
-            finishedFiles = 0;
-            startTime = Date.now();
-            progressSection.style.display = 'block';
-            updateProgress();
-            log('开始上传 ' + totalFiles + ' 个文件...');
+            // ── 清空并初始化日志 ──
+            if (logBox) {
+                logBox.textContent = '';
+            }
+            log('📋 就绪 — 请选择文件或拖拽到上方区域');
 
-            const tasks = Array.from(files).map(async function(f) {
-                const fd = new FormData();
-                fd.append('image', f);
-                try {
-                    const resp = await fetch('/upload', { method: 'POST', body: fd });
-                    const json = await resp.json();
-                    if (json.ok) {
-                        finishedFiles++;
-                        updateProgress();
-                        log('✔ ' + f.name);
+            // ── 更新进度 ──
+            function updateProgress() {
+                const pct = totalFiles > 0 ? Math.round((finishedFiles / totalFiles) * 100) : 0;
+                if (progressBar) progressBar.style.width = pct + '%';
+                if (taskCounter) taskCounter.innerText = finishedFiles + '/' + totalFiles;
+
+                if (finishedFiles > 0 && startTime > 0) {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const speed = elapsed > 0 ? (finishedFiles / elapsed).toFixed(2) : '—';
+                    if (uploadSpeed) uploadSpeed.innerText = speed + ' 个/秒';
+                } else {
+                    if (uploadSpeed) uploadSpeed.innerText = '—';
+                }
+
+                if (logStatus) {
+                    if (totalFiles > 0 && finishedFiles === totalFiles) {
+                        logStatus.innerText = '全部上传完成 ✅';
+                    } else if (totalFiles > 0 && finishedFiles > 0) {
+                        logStatus.innerText = '上传中 ' + finishedFiles + '/' + totalFiles;
+                    } else if (totalFiles > 0) {
+                        logStatus.innerText = '待上传 ' + totalFiles + ' 个';
                     } else {
-                        finishedFiles++;
-                        updateProgress();
-                        log('❌ ' + f.name + ' 失败: ' + (json.error || '未知错误'));
+                        logStatus.innerText = '就绪';
                     }
-                } catch (e) {
-                    finishedFiles++;
+                }
+            }
+
+            // ── 渲染文件列表 ──
+            function renderFileList(files) {
+                if (!fileList) return;
+                fileList.innerHTML = '';
+                if (!files || files.length === 0) {
+                    log('未选择文件');
+                    if (progressSection) progressSection.style.display = 'none';
+                    totalFiles = 0;
+                    finishedFiles = 0;
+                    startTime = 0;
                     updateProgress();
-                    log('❌ ' + f.name + ' 网络错误: ' + e);
+                    return;
+                }
+                log('已选择 ' + files.length + ' 个文件:');
+                for (let i = 0; i < files.length; i++) {
+                    const f = files[i];
+                    log('  · ' + f.name);
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    item.textContent = f.name;
+                    fileList.appendChild(item);
+                }
+                // 显示进度区域并重置
+                if (progressSection) progressSection.style.display = 'block';
+                totalFiles = files.length;
+                finishedFiles = 0;
+                startTime = 0;
+                updateProgress();
+            }
+
+            // ── 监听文件选择 ──
+            fileInput.addEventListener('change', function() {
+                const files = fileInput.files;
+                renderFileList(files);
+            });
+
+            // ── 拖拽支持 ──
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('drag-over');
+            });
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('drag-over');
+            });
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('drag-over');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    // 通过 DataTransfer 设置文件并手动触发 change 事件
+                    const dt = new DataTransfer();
+                    for (let i = 0; i < files.length; i++) {
+                        dt.items.add(files[i]);
+                    }
+                    fileInput.files = dt.files;
+                    // 手动触发 change 事件，确保监听器执行
+                    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             });
 
-            await Promise.all(tasks);
-            isUploading = false;
-            btnUpload.disabled = false;
-            btnUpload.textContent = '⬆ 开始上传';
-            log('✅ 批次上传结束');
-            if (finishedFiles === totalFiles) {
-                log('🎉 所有文件上传成功，可以点击"停止服务"');
-                showToast('全部上传完成 🎉', 'success');
-            } else {
-                showToast(finishedFiles + '/' + totalFiles + ' 完成', '');
-            }
-        }
+            // ── 开始上传 ──
+            async function startUpload() {
+                if (isUploading) {
+                    showToast('上传已在进行中', '');
+                    return;
+                }
+                const files = fileInput.files;
+                if (!files || files.length === 0) {
+                    log('⚠ 请先选择文件');
+                    showToast('请先选择文件', 'error');
+                    return;
+                }
 
-        // ── 停止服务 ────────────────────────
-        async function shutdownServer() {
-            log('🛑 正在停止服务...');
-            btnStop.textContent = '⏳ 停止中...';
-            btnStop.style.pointerEvents = 'none';
-            btnStop.style.opacity = '0.7';
-            try {
-                const resp = await fetch('/shutdown', { method: 'POST' });
-                const json = await resp.json();
-                log('✔ 服务已停止: ' + JSON.stringify(json));
-                logStatus.innerText = '服务已停止 – 正在处理照片';
-                showToast('服务已停止', 'success');
-            } catch (e) {
-                log('❌ 停止失败: ' + e);
-                showToast('停止失败', 'error');
-            } finally {
-                btnStop.textContent = '⏹ 停止服务';
-                btnStop.style.pointerEvents = 'auto';
-                btnStop.style.opacity = '1';
-            }
-            isUploading = false;
-            btnUpload.disabled = false;
-            btnUpload.textContent = '⬆ 开始上传';
-        }
+                isUploading = true;
+                if (btnUpload) {
+                    btnUpload.disabled = true;
+                    btnUpload.textContent = '⏳ 上传中...';
+                }
+                totalFiles = files.length;
+                finishedFiles = 0;
+                startTime = Date.now();
+                if (progressSection) progressSection.style.display = 'block';
+                updateProgress();
+                log('🚀 开始上传 ' + totalFiles + ' 个文件...');
 
-        // ── 自动日志 ────────────────────────
-        function toggleAuto() {
-            auto = !auto;
-            if (auto) {
-                autoBtn.classList.add('active');
-                autoBtn.innerHTML = '📋 自动日志 (开)';
-                log('[AUTO] 开始轮询日志...');
-                timer = setInterval(async function() {
+                const tasks = Array.from(files).map(async function(f) {
+                    const fd = new FormData();
+                    fd.append('image', f);
                     try {
-                        const r = await fetch('/logs');
-                        const j = await r.json();
-                        log('[AUTO] ' + JSON.stringify(j));
+                        const resp = await fetch('/upload', { method: 'POST', body: fd });
+                        const json = await resp.json();
+                        if (json.ok) {
+                            finishedFiles++;
+                            updateProgress();
+                            log('✔ ' + f.name);
+                        } else {
+                            finishedFiles++;
+                            updateProgress();
+                            log('❌ ' + f.name + ' 失败: ' + (json.error || '未知错误'));
+                        }
                     } catch (e) {
-                        log('[AUTO ERR] ' + e);
+                        finishedFiles++;
+                        updateProgress();
+                        log('❌ ' + f.name + ' 网络错误: ' + (e.message || e));
                     }
-                }, 3000);
-                showToast('自动日志已开启');
-            } else {
-                autoBtn.classList.remove('active');
-                autoBtn.innerHTML = '📋 自动日志';
-                clearInterval(timer);
-                log('[AUTO] 停止轮询');
-                showToast('自动日志已关闭');
-            }
-        }
+                });
 
-        // 页面卸载时清理定时器
-        window.addEventListener('beforeunload', function() {
-            if (timer) clearInterval(timer);
-        });
+                await Promise.all(tasks);
+                isUploading = false;
+                if (btnUpload) {
+                    btnUpload.disabled = false;
+                    btnUpload.textContent = '⬆ 开始上传';
+                }
+                log('✅ 批次上传结束');
+                if (finishedFiles === totalFiles) {
+                    log('🎉 所有文件上传成功，可以点击"停止服务"');
+                    showToast('全部上传完成 🎉', 'success');
+                } else {
+                    showToast(finishedFiles + '/' + totalFiles + ' 完成', '');
+                }
+            }
+
+            // ── 停止服务 ──
+            async function shutdownServer() {
+                log('🛑 正在停止服务...');
+                if (btnStop) {
+                    btnStop.textContent = '⏳ 停止中...';
+                    btnStop.style.pointerEvents = 'none';
+                    btnStop.style.opacity = '0.7';
+                }
+                try {
+                    const resp = await fetch('/shutdown', { method: 'POST' });
+                    const json = await resp.json();
+                    log('✔ 服务已停止: ' + JSON.stringify(json));
+                    if (logStatus) logStatus.innerText = '服务已停止 – 正在处理照片';
+                    showToast('服务已停止', 'success');
+                } catch (e) {
+                    log('❌ 停止失败: ' + (e.message || e));
+                    showToast('停止失败', 'error');
+                } finally {
+                    if (btnStop) {
+                        btnStop.textContent = '⏹ 停止服务';
+                        btnStop.style.pointerEvents = 'auto';
+                        btnStop.style.opacity = '1';
+                    }
+                }
+                isUploading = false;
+                if (btnUpload) {
+                    btnUpload.disabled = false;
+                    btnUpload.textContent = '⬆ 开始上传';
+                }
+            }
+
+            // ── 自动日志 ──
+            function toggleAuto() {
+                auto = !auto;
+                if (auto) {
+                    if (autoBtn) {
+                        autoBtn.classList.add('active');
+                        autoBtn.innerHTML = '📋 自动日志 (开)';
+                    }
+                    log('[AUTO] 开始轮询日志...');
+                    timer = setInterval(async function() {
+                        try {
+                            const r = await fetch('/logs');
+                            const j = await r.json();
+                            log('[AUTO] ' + JSON.stringify(j));
+                        } catch (e) {
+                            log('[AUTO ERR] ' + (e.message || e));
+                        }
+                    }, 3000);
+                    showToast('自动日志已开启');
+                } else {
+                    if (autoBtn) {
+                        autoBtn.classList.remove('active');
+                        autoBtn.innerHTML = '📋 自动日志';
+                    }
+                    clearInterval(timer);
+                    timer = null;
+                    log('[AUTO] 停止轮询');
+                    showToast('自动日志已关闭');
+                }
+            }
+
+            // ── 页面卸载清理 ──
+            window.addEventListener('beforeunload', function() {
+                if (timer) clearInterval(timer);
+            });
+
+            // ── 暴露到全局作用域，供 onclick 调用 ──
+            window.startUpload = startUpload;
+            window.shutdownServer = shutdownServer;
+            window.toggleAuto = toggleAuto;
+
+            // ── 按钮事件绑定（双重保障） ──
+            if (btnUpload) {
+                btnUpload.addEventListener('click', function(e) {
+                    // 如果 onclick 未触发，这里作为后备
+                    // 但为了避免重复执行，这里不额外调用，仅保留 onclick
+                });
+                // 同时绑定原生事件以防 onclick 失效
+                btnUpload.onclick = function(e) {
+                    e.preventDefault();
+                    startUpload();
+                };
+            }
+            if (btnStop) {
+                btnStop.onclick = function(e) {
+                    e.preventDefault();
+                    shutdownServer();
+                };
+            }
+            if (autoBtn) {
+                autoBtn.onclick = function(e) {
+                    e.preventDefault();
+                    toggleAuto();
+                };
+            }
+
+            // ── 初始化完成 ──
+            log('✅ 页面就绪，等待操作...');
+        })();
     </script>
 </body>
 </html>
-                
                 
                 
                 """
