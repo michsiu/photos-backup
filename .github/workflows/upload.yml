@@ -34,7 +34,7 @@ jobs:
 
       - name: Start server, ngrok, and wait for shutdown
         run: |
-          # 1. 启动 Flask (后台，记录PID)
+          # 1. 启动 Flask (后台，记录PID.)
           nohup python upload_server.py > server.log 2>&1 &
           echo $! > flask.pid
           sleep 2
