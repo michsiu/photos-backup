@@ -16,7 +16,7 @@ import piexif
 app = Flask(__name__)
 
 # =========================
-# PATH SETUP
+# PATH SETUP.
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
 
