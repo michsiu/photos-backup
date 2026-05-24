@@ -366,509 +366,325 @@ def shutdown():
 
 # 在 gallery 路由的 Python 代码顶部，已经有这行（如果没有就加上）
 raw_base = f"https://raw.githubusercontent.com/{user}/{repo}/{branch}"
+
+
 @app.route('/gallery')
 def gallery():
-    # 直接读 photos.json，把数据嵌入页面
+
     try:
         with open(JSON_FILE, 'r', encoding='utf-8') as f:
-            photos_json = f.read()
+            photos = json.load(f)
     except Exception:
-        photos_json = '{}'
+        photos = {}
+
+    photos_json = json.dumps(photos, ensure_ascii=False)
 
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <title>Photo Gallery</title>
 
 <style>
-*{
+* {{
   margin:0;
   padding:0;
   box-sizing:border-box;
-}
+}}
 
-body{
+body {{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   background:#f4f6f9;
   color:#1e293b;
-}
+}}
 
-.container{
+.container {{
   max-width:1400px;
   margin:0 auto;
   padding:20px;
-}
+}}
 
-h1{
+h1 {{
   text-align:center;
-  font-size:2rem;
   margin-bottom:20px;
-}
+}}
 
-.controls{
+.controls {{
   display:flex;
-  flex-wrap:wrap;
   gap:12px;
+  flex-wrap:wrap;
   margin-bottom:20px;
-}
+}}
 
 .controls input,
-.controls select{
-  padding:10px 14px;
+.controls select {{
+  padding:10px;
   border:1px solid #cbd5e1;
-  border-radius:10px;
-  background:white;
-  font-size:0.95rem;
-}
+  border-radius:8px;
+}}
 
-.controls input{
+.controls input {{
   flex:1;
-  min-width:220px;
-}
+  min-width:200px;
+}}
 
-.grid{
+.grid {{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
   gap:16px;
-}
+}}
 
-.card{
+.card {{
   background:white;
-  border-radius:14px;
+  border-radius:12px;
   overflow:hidden;
-  box-shadow:0 4px 14px rgba(0,0,0,0.06);
-  transition:transform .2s ease;
-}
+  box-shadow:0 4px 12px rgba(0,0,0,.06);
+}}
 
-.card:hover{
-  transform:translateY(-4px);
-}
-
-.card img{
+.card img {{
   width:100%;
   height:220px;
   object-fit:cover;
-  display:block;
-  background:#e2e8f0;
-}
+}}
 
-.card-info{
-  padding:12px;
-}
+.card-info {{
+  padding:10px;
+}}
 
-.name{
+.name {{
   font-weight:600;
   font-size:.9rem;
+  white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-  white-space:nowrap;
-}
+}}
 
-.date{
-  margin-top:6px;
-  color:#64748b;
+.date {{
   font-size:.8rem;
-}
-
-.stats{
-  margin-bottom:16px;
   color:#64748b;
-  font-size:.9rem;
-}
+  margin-top:4px;
+}}
 
-.loading{
+.loading {{
   text-align:center;
   padding:30px;
   color:#64748b;
-  font-size:.9rem;
-}
+}}
 
-.empty{
-  text-align:center;
-  padding:60px 20px;
-  color:#64748b;
-}
-
-#sentinel{
+#sentinel {{
   height:1px;
-}
-
-@media (max-width:640px){
-
-  .container{
-    padding:14px;
-  }
-
-  .grid{
-    grid-template-columns:repeat(2,1fr);
-    gap:12px;
-  }
-
-  .card img{
-    height:180px;
-  }
-
-}
+}}
 </style>
 </head>
 
 <body>
-
 <div class="container">
 
-  <h1>📷 Photo Gallery</h1>
+<h1>📷 Photo Gallery</h1>
 
-  <div class="controls">
-    <input
-      type="text"
-      id="search"
-      placeholder="🔍 搜索文件名..."
-    >
+<div class="controls">
+  <input id="search" placeholder="搜索文件名...">
+  <select id="yearFilter">
+    <option value="">所有年份</option>
+  </select>
+  <select id="sortBy">
+    <option value="date-desc">时间 ↓</option>
+    <option value="date-asc">时间 ↑</option>
+    <option value="name-asc">A-Z</option>
+    <option value="name-desc">Z-A</option>
+    <option value="random">随机</option>
+  </select>
+</div>
 
-    <select id="yearFilter">
-      <option value="">所有年份</option>
-    </select>
-
-    <select id="sortBy">
-      <option value="date-desc" selected>时间 ↓</option>
-      <option value="date-asc">时间 ↑</option>
-      <option value="name-asc">名称 A-Z</option>
-      <option value="name-desc">名称 Z-A</option>
-      <option value="random">随机</option>
-    </select>
-  </div>
-
-  <div class="stats" id="stats"></div>
-
-  <div class="grid" id="grid"></div>
-
-  <div class="loading" id="loading">
-    正在加载...
-  </div>
-
-  <div id="sentinel"></div>
+<div class="grid" id="grid"></div>
+<div class="loading" id="loading">加载中...</div>
+<div id="sentinel"></div>
 
 </div>
 
 <script>
 
-const RAW_BASE = "{raw_base}";
+const RAW_BASE = "";
+
 const ALL_PHOTOS_DATA = {photos_json};
 
 const PER_LOAD = 20;
 
 let allPhotos = [];
 let filteredPhotos = [];
-
 let renderedCount = 0;
 let loading = false;
 
 const grid = document.getElementById('grid');
 const loadingEl = document.getElementById('loading');
 
-function initPhotos(){
+function init(){
 
-  const raw = ALL_PHOTOS_DATA;
-
-  allPhotos = Object.keys(raw).map(sha => {
-
-    const item = raw[sha];
-
+  allPhotos = Object.keys(ALL_PHOTOS_DATA).map(sha => {
+    const item = ALL_PHOTOS_DATA[sha];
     item.sha256 = sha;
-
     return item;
   });
 
-  initYearFilter();
-
+  initFilters();
   bindEvents();
-
   applyFilters();
 }
 
-function initYearFilter(){
+function initFilters(){
 
-  const years = [
-    ...new Set(
-      allPhotos
-        .map(p => p.year)
-        .filter(Boolean)
-    )
-  ].sort().reverse();
+  const years = [...new Set(allPhotos.map(p => p.year))].sort();
+  const sel = document.getElementById('yearFilter');
 
-  const yearSelect = document.getElementById('yearFilter');
-
-  years.forEach(year => {
-
+  years.forEach(y => {
     const opt = document.createElement('option');
-
-    opt.value = year;
-    opt.textContent = year;
-
-    yearSelect.appendChild(opt);
+    opt.value = y;
+    opt.textContent = y;
+    sel.appendChild(opt);
   });
 }
 
 function bindEvents(){
 
-  document
-    .getElementById('search')
-    .addEventListener('input', debounce(applyFilters, 250));
+  document.getElementById('search')
+    .addEventListener('input', debounce(applyFilters, 200));
 
-  document
-    .getElementById('yearFilter')
+  document.getElementById('yearFilter')
     .addEventListener('change', applyFilters);
 
-  document
-    .getElementById('sortBy')
+  document.getElementById('sortBy')
     .addEventListener('change', applyFilters);
 }
 
 function applyFilters(){
 
-  const search = document
-    .getElementById('search')
-    .value
-    .toLowerCase()
-    .trim();
+  const search =
+    document.getElementById('search').value.toLowerCase();
 
-  const year = document
-    .getElementById('yearFilter')
-    .value;
+  const year =
+    document.getElementById('yearFilter').value;
 
-  const sort = document
-    .getElementById('sortBy')
-    .value;
+  const sort =
+    document.getElementById('sortBy').value;
 
-  filteredPhotos = allPhotos.filter(photo => {
-
-    const matchName =
-      !search ||
-      photo.fileName.toLowerCase().includes(search);
-
-    const matchYear =
-      !year ||
-      photo.year == year;
-
-    return matchName && matchYear;
+  filteredPhotos = allPhotos.filter(p => {
+    return (!search || p.fileName.toLowerCase().includes(search))
+      && (!year || p.year == year);
   });
 
   switch(sort){
 
     case 'date-asc':
-
-      filteredPhotos.sort(
-        (a,b) => new Date(a.date) - new Date(b.date)
-      );
-
+      filteredPhotos.sort((a,b)=>new Date(a.date)-new Date(b.date));
       break;
 
     case 'date-desc':
-
-      filteredPhotos.sort(
-        (a,b) => new Date(b.date) - new Date(a.date)
-      );
-
+      filteredPhotos.sort((a,b)=>new Date(b.date)-new Date(a.date));
       break;
 
     case 'name-asc':
-
-      filteredPhotos.sort(
-        (a,b) => a.fileName.localeCompare(b.fileName)
-      );
-
+      filteredPhotos.sort((a,b)=>a.fileName.localeCompare(b.fileName));
       break;
 
     case 'name-desc':
-
-      filteredPhotos.sort(
-        (a,b) => b.fileName.localeCompare(a.fileName)
-      );
-
+      filteredPhotos.sort((a,b)=>b.fileName.localeCompare(a.fileName));
       break;
 
     case 'random':
-
-      shuffle(filteredPhotos);
-
+      filteredPhotos.sort(()=>Math.random()-0.5);
       break;
   }
 
   renderedCount = 0;
-
   grid.innerHTML = '';
 
-  updateStats();
-
   loadMore();
-
-  window.scrollTo({
-    top:0,
-    behavior:'instant'
-  });
 }
 
 function loadMore(){
 
   if(loading) return;
-
   loading = true;
 
-  const slice = filteredPhotos.slice(
-    renderedCount,
-    renderedCount + PER_LOAD
-  );
+  const slice =
+    filteredPhotos.slice(renderedCount, renderedCount + PER_LOAD);
 
   if(slice.length === 0){
-
-    loadingEl.innerHTML = '已经到底了';
-
+    loadingEl.innerText = "已经到底了";
     loading = false;
-
     return;
   }
 
-  const fragment = document.createDocumentFragment();
+  const frag = document.createDocumentFragment();
 
-  slice.forEach(photo => {
+  slice.forEach(p => {
 
-    const card = createCard(photo);
+    const div = document.createElement('div');
+    div.className = 'card';
 
-    fragment.appendChild(card);
+    const img = RAW_BASE + '/' + p.thumbnail;
+    const full = RAW_BASE + '/' + p.url;
+
+    div.innerHTML = `
+      <a href="${full}" target="_blank">
+        <img src="${img}" loading="lazy">
+      </a>
+      <div class="card-info">
+        <div class="name">${p.fileName}</div>
+        <div class="date">${p.date || ''}</div>
+      </div>
+    `;
+
+    frag.appendChild(div);
   });
 
-  grid.appendChild(fragment);
+  grid.appendChild(frag);
 
   renderedCount += slice.length;
 
-  loadingEl.innerHTML =
+  loadingEl.innerText =
     renderedCount >= filteredPhotos.length
-      ? '已经到底了'
-      : \`已加载 ${renderedCount} / ${filteredPhotos.length}\`;
+      ? "已经到底了"
+      : `已加载 ${renderedCount}/${filteredPhotos.length}`;
 
   loading = false;
 }
 
-function createCard(photo){
-
-  const card = document.createElement('div');
-
-  card.className = 'card';
-
-  const imgUrl =
-    RAW_BASE + '/' + photo.url;
-
-  const thumbUrl =
-    RAW_BASE + '/' + photo.thumbnail;
-
-  card.innerHTML = \`
-    <a href="${imgUrl}" target="_blank">
-      <img
-        src="${thumbUrl}"
-        loading="lazy"
-        decoding="async"
-        alt="${photo.fileName}"
-      >
-    </a>
-
-    <div class="card-info">
-
-      <div
-        class="name"
-        title="${photo.fileName}"
-      >
-        ${photo.fileName}
-      </div>
-
-      <div class="date">
-        ${photo.date || ''}
-      </div>
-
-    </div>
-  \`;
-
-  return card;
-}
-
-function updateStats(){
-
-  const stats =
-    document.getElementById('stats');
-
-  if(filteredPhotos.length === 0){
-
-    stats.innerHTML = '没有找到图片';
-
-    grid.innerHTML = \`
-      <div class="empty">
-        没有匹配结果
-      </div>
-    \`;
-
-    return;
-  }
-
-  stats.innerHTML =
-    \`共 ${filteredPhotos.length} 张图片\`;
-}
-
-function shuffle(array){
-
-  for(let i = array.length - 1; i > 0; i--){
-
-    const j =
-      Math.floor(
-        Math.random() * (i + 1)
-      );
-
-    [array[i], array[j]] =
-      [array[j], array[i]];
-  }
-}
-
-function debounce(fn, delay){
+function debounce(fn, t){
 
   let timer;
 
-  return function(){
+  return (...args) => {
 
     clearTimeout(timer);
 
-    timer = setTimeout(
-      () => fn.apply(this, arguments),
-      delay
-    );
+    timer = setTimeout(()=>fn(...args), t);
   };
 }
 
-const sentinel =
-  document.getElementById('sentinel');
+const observer = new IntersectionObserver(entries => {
 
-const observer =
-  new IntersectionObserver(entries => {
+  if(entries[0].isIntersecting){
+    loadMore();
+  }
 
-    if(
-      entries[0].isIntersecting &&
-      renderedCount < filteredPhotos.length
-    ){
-      loadMore();
-    }
+}, {
+  rootMargin: "800px"
+});
 
-  },{
-    rootMargin:'1200px'
-  });
+observer.observe(document.getElementById('sentinel'));
 
-observer.observe(sentinel);
-
-initPhotos();
+init();
 
 </script>
 
 </body>
-</html>"""
+</html>
+"""
+
+
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
