@@ -199,9 +199,9 @@ def index():
         log('未选择文件');
         return;
       }
-      log(`已选择 ${files.length} 个文件:`);
+      log(\`已选择 ${files.length} 个文件:\`);
       for (const f of files) {
-        log(`  · ${f.name}`);
+        log(\`  · ${f.name}\`);
         const item = document.createElement('div');
         item.className = 'file-item';
         item.textContent = f.name;
@@ -212,18 +212,18 @@ def index():
     function updateProgress() {
       const pct = totalFiles > 0 ? (finishedFiles / totalFiles * 100) : 0;
       progressBar.style.width = pct + '%';
-      taskCounter.innerText = `${finishedFiles}/${totalFiles}`;
+      taskCounter.innerText = \`${finishedFiles}/${totalFiles}\`;
 
       if (finishedFiles > 0 && startTime > 0) {
         const elapsed = (Date.now() - startTime) / 1000;
         const speed = (finishedFiles / elapsed).toFixed(2);
-        uploadSpeed.innerText = `${speed} 个/秒`;
+        uploadSpeed.innerText = \`${speed} 个/秒\`;
       }
 
       if (totalFiles > 0 && finishedFiles === totalFiles) {
         logStatus.innerText = '全部上传完成 ✅';
       } else if (totalFiles > 0) {
-        logStatus.innerText = `上传中 ${finishedFiles}/${totalFiles}`;
+        logStatus.innerText = \`上传中 ${finishedFiles}/${totalFiles}\`;
       }
     }
 
@@ -258,7 +258,7 @@ def index():
       startTime = Date.now();
       progressSection.style.display = 'block';
       updateProgress();
-      log(`开始上传 ${totalFiles} 个文件...`);
+      log(\`开始上传 ${totalFiles} 个文件...\`);
 
       const tasks = Array.from(files).map(async (f) => {
         const fd = new FormData();
@@ -748,7 +748,7 @@ function loadMore(){
   loadingEl.innerHTML =
     renderedCount >= filteredPhotos.length
       ? '已经到底了'
-      : `已加载 ${renderedCount} / ${filteredPhotos.length}`;
+      : \`已加载 ${renderedCount} / ${filteredPhotos.length}\`;
 
   loading = false;
 }
@@ -765,7 +765,7 @@ function createCard(photo){
   const thumbUrl =
     RAW_BASE + '/' + photo.thumbnail;
 
-  card.innerHTML = `
+  card.innerHTML = \`
     <a href="${imgUrl}" target="_blank">
       <img
         src="${thumbUrl}"
@@ -789,7 +789,7 @@ function createCard(photo){
       </div>
 
     </div>
-  `;
+  \`;
 
   return card;
 }
@@ -803,17 +803,17 @@ function updateStats(){
 
     stats.innerHTML = '没有找到图片';
 
-    grid.innerHTML = `
+    grid.innerHTML = \`
       <div class="empty">
         没有匹配结果
       </div>
-    `;
+    \`;
 
     return;
   }
 
   stats.innerHTML =
-    `共 ${filteredPhotos.length} 张图片`;
+    \`共 ${filteredPhotos.length} 张图片\`;
 }
 
 function shuffle(array){
