@@ -358,26 +358,7 @@ def shutdown():
     threading.Thread(target=killer).start()
     return jsonify({"ok": True, "message": "服务关闭中"})
     
-# 静态文件服务：让浏览器可访问 photos 和 thumbs 目录
-@app.route('/photos/<path:filename>')
-def serve_photos(filename):
-    return send_from_directory(PHOTO_DIR, filename)
 
-@app.route('/thumbs/<path:filename>')
-def serve_thumbs(filename):
-    return send_from_directory(THUMB_DIR, filename)
-    
-@app.route('/api/photos')
-def api_photos():
-    with open(JSON_FILE, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    # 转换为列表方便前端处理，同时保留 key（sha256）
-    photos_list = []
-    for sha, info in data.items():
-        item = dict(info)
-        item['sha256'] = sha  # 确保有 sha256 字段
-        photos_list.append(item)
-    return jsonify(photos_list)
     
 
 
@@ -442,8 +423,12 @@ def gallery():
   <div class="pagination" id="pagination"></div>
   <div id="sentinel"></div>
 </div>
-
 <script>
+  const RAW_BASE = "{raw_base}";
+  
+
+# 在 gallery 路由的 Python 代码顶部，已经有这行（如果没有就加上）
+raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}"
   // 服务端直接注入数据，无需额外请求
   var ALL_PHOTOS_DATA = {photos_json};
 
@@ -525,8 +510,8 @@ def gallery():
     pagePhotos.forEach(p => {{
       const card = document.createElement('div');
       card.className = 'card';
-      const imgUrl = '/' + p.url;
-      const thumbUrl = '/' + p.thumbnail;
+      const imgUrl = RAW_BASE + '/' + p.url;
+      const thumbUrl = RAW_BASE + '/' + p.thumbnail;
       card.innerHTML = `
         <a href="${{imgUrl}}" target="_blank">
           <img src="${{thumbUrl}}" loading="lazy" alt="${{p.fileName}}">
