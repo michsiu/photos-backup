@@ -1,7 +1,7 @@
 name: Photo Upload via Ngrok
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 jobs:
   upload:
@@ -32,19 +32,14 @@ jobs:
 
       - name: Start upload server and ngrok
         run: |
-          # 启动 Flask 服务器（后台运行）
           python upload_server.py &
           sleep 2
-          
-          # 启动 ngrok，暴露 5000 端口
+
           ./ngrok http 5000 --log=stdout > ngrok.log 2>&1 &
-          
-          # 等待 ngrok API 就绪并获取 URL（最多等60秒）
+
           NGROK_URL=""
           for i in {1..60}; do
-            # 检查 API 是否可访问
             if curl -s http://127.0.0.1:4040/api/tunnels > /tmp/ngrok_response 2>&1; then
-              # 尝试解析 URL
               NGROK_URL=$(python -c "
 import json
 with open('/tmp/ngrok_response') as f:
@@ -58,7 +53,6 @@ if tunnels:
               fi
             fi
             echo "Waiting for ngrok tunnel... (attempt $i/60)"
-            # 打印 ngrok 日志帮助排查（可选）
             if [ $i -eq 10 ]; then
               echo "--- ngrok log (last 5 lines) ---"
               tail -5 ngrok.log || true
@@ -66,19 +60,18 @@ if tunnels:
             fi
             sleep 1
           done
-          
+
           if [ -z "$NGROK_URL" ]; then
             echo "Failed to get ngrok URL"
             cat ngrok.log
             exit 1
           fi
-          
+
           echo "=============================================="
           echo "  Upload page available at: $NGROK_URL"
           echo "  Open this URL in your browser to upload."
           echo "=============================================="
-          
-          # 等待服务器进程结束（由用户通过 /shutdown 触发）
+
           wait
 
       - name: Commit and push changes
