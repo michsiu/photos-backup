@@ -6,7 +6,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
-from flask import Flask, request, jsonify,json
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
@@ -363,8 +363,7 @@ def shutdown():
     threading.Thread(target=killer).start()
     return jsonify({"ok": True, "message": "服务关闭中"})
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+
     
     
 
@@ -527,4 +526,16 @@ def gallery():
 </body>
 </html>
 """
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
+
+
     
