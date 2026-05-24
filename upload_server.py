@@ -369,9 +369,7 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
     
     
-raw_base = """https://raw.githubusercontent.com/{user}/{repo}/{branch}/"""
-
-
+raw_base = f"""https://raw.githubusercontent.com/{user}/{repo}/{branch}/"""
 JSON_FILE = "photos.json"
 
 @app.route('/gallery')
