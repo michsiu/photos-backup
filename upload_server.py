@@ -74,7 +74,7 @@ def extract_zip(zip_path: Path):
 
 @app.route("/")
 def index():
-    return """
+    return r"""
 
                 <!doctype html>
 <html lang="zh-CN">
