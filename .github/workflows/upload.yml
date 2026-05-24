@@ -22,19 +22,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           pip install flask pillow piexif
 
-      - name: Download ngrok v3
+      - name: Install ngrok
         run: |
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
           unzip -o ngrok-v3-stable-linux-amd64.zip
 
           chmod +x ngrok
 
-      - name: Configure ngrok token
-        run: |
           ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
 
       - name: Configure git
@@ -42,51 +40,50 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
 
-      - name: Start Flask upload server
+      - name: Start Flask server
         run: |
-          python upload_server.py > server.log 2>&1 &
-
-          echo "Waiting Flask server..."
-          sleep 5
+          nohup python upload_server.py > server.log 2>&1 &
 
       - name: Start ngrok
         run: |
-          ./ngrok http 5000 > ngrok.log 2>&1 &
+          nohup ./ngrok http 5000 > ngrok.log 2>&1 &
 
-          echo "Waiting ngrok..."
-          sleep 10
-
-      - name: Print logs and URL
+      - name: Wait for ngrok
         run: |
-          echo ""
-          echo "================ NGROK LOG ================"
-          cat ngrok.log || true
-          echo "==========================================="
-          echo ""
+          echo "Waiting for ngrok API..."
+
+          URL=""
+
+          for i in {1..90}; do
+
+            RESPONSE=$(curl -s http://127.0.0.1:4040/api/tunnels || true)
+
+            URL=$(echo "$RESPONSE" | grep -oE 'https://[a-zA-Z0-9.-]+\.ngrok-free\.app' | head -n 1)
+
+            if [ ! -z "$URL" ]; then
+              break
+            fi
+
+            echo "Attempt $i/90"
+
+            sleep 2
+          done
 
           echo ""
-          echo "================ SERVER LOG ================"
-          cat server.log || true
-          echo "============================================"
-          echo ""
-
-          echo ""
-          echo "================ PROCESS LIST =============="
-          ps aux | grep ngrok || true
-          ps aux | grep python || true
-          echo "============================================"
-          echo ""
-
-          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.ngrok-free\.app' ngrok.log | head -n 1)
-
-          echo ""
-          echo "================ DETECTED URL =============="
-          echo "$URL"
-          echo "============================================"
+          echo "================ NGROK RESPONSE ================"
+          echo "$RESPONSE"
+          echo "================================================"
           echo ""
 
           if [ -z "$URL" ]; then
             echo "ERROR: Failed to detect ngrok URL"
+
+            echo ""
+            echo "================ NGROK LOG ================"
+            cat ngrok.log || true
+            echo "==========================================="
+            echo ""
+
             exit 1
           fi
 
