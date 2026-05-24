@@ -12,7 +12,7 @@ from PIL import Image
 app = Flask(__name__)
 
 # =========================
-# 🔥 固定 repo root（关键修复）
+# 固定路径（绝对稳定）
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -24,7 +24,7 @@ PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
 
 # =========================
-# DB
+# 数据库
 # =========================
 if JSON_FILE.exists():
     photos_db = json.loads(JSON_FILE.read_text(encoding="utf-8"))
@@ -35,7 +35,7 @@ def log(msg):
     print(f"[LOG] {msg}", flush=True)
 
 # =========================
-# 首页（修复你404问题）
+# 主页（日志区保留版）
 # =========================
 @app.route("/")
 def index():
@@ -45,33 +45,66 @@ def index():
 <head>
 <meta charset="utf-8">
 <title>Photo Server</title>
+<style>
+body { font-family: sans-serif; padding: 20px; }
+
+#log {
+    margin-top: 15px;
+    padding: 10px;
+    background: #000;
+    color: #0f0;
+    height: 300px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+button { margin-top: 10px; }
+</style>
 </head>
 <body>
+
 <h1>📷 Photo Upload Server</h1>
 
-<p>状态：运行中</p>
-
 <input type="file" id="file" multiple />
+<br>
 <button onclick="upload()">上传</button>
 
 <div id="log"></div>
 
 <script>
+function log(msg){
+    const el = document.getElementById("log");
+    el.innerHTML += msg + "<br>";
+    el.scrollTop = el.scrollHeight;
+}
+
 async function upload(){
     const files = document.getElementById('file').files;
-    const log = document.getElementById('log');
 
-    for (let f of files){
+    if(!files.length){
+        log("⚠ 没有选择文件");
+        return;
+    }
+
+    for(let f of files){
+        log("➡ 上传: " + f.name);
+
         const fd = new FormData();
         fd.append("image", f);
 
-        const r = await fetch("/upload", {
-            method:"POST",
-            body: fd
-        });
+        try {
+            const r = await fetch("/upload", {
+                method: "POST",
+                body: fd
+            });
 
-        const j = await r.json();
-        log.innerHTML += "<div>" + f.name + " → " + JSON.stringify(j) + "</div>";
+            const j = await r.json();
+            log("✔ 成功: " + f.name + " -> " + JSON.stringify(j));
+
+        } catch(e){
+            log("❌ 失败: " + f.name + " -> " + e);
+        }
     }
 }
 </script>
@@ -111,7 +144,7 @@ def upload():
         log(f"PHOTO: {photo_path}")
         log(f"JSON: {JSON_FILE}")
 
-        # 写原图
+        # 写图
         with open(photo_path, "wb") as f:
             f.write(data)
             f.flush()
@@ -125,10 +158,10 @@ def upload():
                 img = img.convert("RGB")
             img.save(thumb_path)
         except Exception as e:
-            log(f"thumb fail: {e}")
+            log(f"thumb error: {e}")
             shutil.copy(photo_path, thumb_path)
 
-        # 写 JSON
+        # JSON
         photos_db[sha] = {
             "name": file.filename,
             "path": str(photo_path.relative_to(BASE_DIR)),
@@ -137,10 +170,7 @@ def upload():
         }
 
         tmp = JSON_FILE.with_suffix(".tmp")
-        tmp.write_text(
-            json.dumps(photos_db, indent=2, ensure_ascii=False),
-            encoding="utf-8"
-        )
+        tmp.write_text(json.dumps(photos_db, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(JSON_FILE)
 
         log("SAVE OK")
