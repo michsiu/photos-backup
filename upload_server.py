@@ -12,7 +12,7 @@ from PIL import Image
 app = Flask(__name__)
 
 # =========================
-# 🔥 锁 repo root（关键修复）
+# 🔥 固定 repo root（关键修复）
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -35,10 +35,50 @@ def log(msg):
     print(f"[LOG] {msg}", flush=True)
 
 # =========================
-# 时间
+# 首页（修复你404问题）
 # =========================
-def now_utc():
-    return datetime.datetime.now(datetime.timezone.utc)
+@app.route("/")
+def index():
+    return """
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Photo Server</title>
+</head>
+<body>
+<h1>📷 Photo Upload Server</h1>
+
+<p>状态：运行中</p>
+
+<input type="file" id="file" multiple />
+<button onclick="upload()">上传</button>
+
+<div id="log"></div>
+
+<script>
+async function upload(){
+    const files = document.getElementById('file').files;
+    const log = document.getElementById('log');
+
+    for (let f of files){
+        const fd = new FormData();
+        fd.append("image", f);
+
+        const r = await fetch("/upload", {
+            method:"POST",
+            body: fd
+        });
+
+        const j = await r.json();
+        log.innerHTML += "<div>" + f.name + " → " + JSON.stringify(j) + "</div>";
+    }
+}
+</script>
+
+</body>
+</html>
+"""
 
 # =========================
 # upload
@@ -59,7 +99,7 @@ def upload():
         if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
             return jsonify({"error": "bad ext"}), 400
 
-        dt = now_utc()
+        dt = datetime.datetime.now(datetime.timezone.utc)
         year = str(dt.year)
 
         photo_path = PHOTO_DIR / year / f"{sha}{ext}"
@@ -68,8 +108,8 @@ def upload():
         photo_path.parent.mkdir(parents=True, exist_ok=True)
         thumb_path.parent.mkdir(parents=True, exist_ok=True)
 
-        log(f"PHOTO = {photo_path}")
-        log(f"JSON  = {JSON_FILE}")
+        log(f"PHOTO: {photo_path}")
+        log(f"JSON: {JSON_FILE}")
 
         # 写原图
         with open(photo_path, "wb") as f:
@@ -88,7 +128,7 @@ def upload():
             log(f"thumb fail: {e}")
             shutil.copy(photo_path, thumb_path)
 
-        # 更新 JSON
+        # 写 JSON
         photos_db[sha] = {
             "name": file.filename,
             "path": str(photo_path.relative_to(BASE_DIR)),
@@ -97,7 +137,10 @@ def upload():
         }
 
         tmp = JSON_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(photos_db, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(photos_db, indent=2, ensure_ascii=False),
+            encoding="utf-8"
+        )
         tmp.replace(JSON_FILE)
 
         log("SAVE OK")
@@ -105,7 +148,7 @@ def upload():
         return jsonify({"ok": True, "sha": sha})
 
     except Exception as e:
-        log("UPLOAD ERROR")
+        log("ERROR")
         log(str(e))
         log(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
@@ -115,7 +158,7 @@ def upload():
 # =========================
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
-    log("SHUTDOWN CALLED")
+    log("SHUTDOWN")
     func = request.environ.get("werkzeug.server.shutdown")
     if func:
         func()
@@ -125,5 +168,5 @@ def shutdown():
 # main
 # =========================
 if __name__ == "__main__":
-    log(f"BASE = {BASE_DIR}")
+    log(f"BASE_DIR = {BASE_DIR}")
     app.run(host="0.0.0.0", port=5000, debug=False)
