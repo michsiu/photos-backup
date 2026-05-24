@@ -22,17 +22,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           pip install flask pillow piexif
 
-      - name: Install ngrok
+      - name: Download ngrok v3
         run: |
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
           unzip -o ngrok-v3-stable-linux-amd64.zip
 
           chmod +x ngrok
 
+      - name: Configure ngrok token
+        run: |
           ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
 
       - name: Configure git
@@ -40,49 +42,64 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
 
-      - name: Start upload server
+      - name: Start Flask upload server
         run: |
           python upload_server.py > server.log 2>&1 &
+
+          echo "Waiting Flask server..."
+          sleep 5
 
       - name: Start ngrok
         run: |
           ./ngrok http 5000 > ngrok.log 2>&1 &
 
-      - name: Wait and print URL
+          echo "Waiting ngrok..."
+          sleep 10
+
+      - name: Print logs and URL
         run: |
-          echo "Waiting for ngrok..."
-
-          URL=""
-
-          for i in {1..60}; do
-
-            URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.ngrok-free\.app' ngrok.log | head -n 1)
-
-            if [ ! -z "$URL" ]; then
-              break
-            fi
-
-            sleep 1
-          done
+          echo ""
+          echo "================ NGROK LOG ================"
+          cat ngrok.log || true
+          echo "==========================================="
+          echo ""
 
           echo ""
-          echo "========== NGROK LOG =========="
-          cat ngrok.log || true
-          echo "================================"
+          echo "================ SERVER LOG ================"
+          cat server.log || true
+          echo "============================================"
+          echo ""
+
+          echo ""
+          echo "================ PROCESS LIST =============="
+          ps aux | grep ngrok || true
+          ps aux | grep python || true
+          echo "============================================"
+          echo ""
+
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.ngrok-free\.app' ngrok.log | head -n 1)
+
+          echo ""
+          echo "================ DETECTED URL =============="
+          echo "$URL"
+          echo "============================================"
+          echo ""
 
           if [ -z "$URL" ]; then
-            echo "Failed to get ngrok URL"
+            echo "ERROR: Failed to detect ngrok URL"
             exit 1
           fi
 
           echo ""
-          echo "===================================="
-          echo "UPLOAD SERVER READY"
+          echo "============================================"
+          echo " PHOTO UPLOAD SERVER READY"
           echo ""
-          echo "$URL"
+          echo " Upload URL:"
+          echo " $URL"
           echo ""
-          echo "===================================="
+          echo "============================================"
 
       - name: Keep workflow alive
         run: |
+          echo "Keeping workflow alive..."
           tail -f /dev/null
