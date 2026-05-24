@@ -13,9 +13,7 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 INCOMING_DIR = BASE_DIR / "incoming"
 INCOMING_DIR.mkdir(exist_ok=True)
-repo = "photos-backup"
-user = "michsiu"
-branch = "main"
+
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
 ZIP_EXTENSION = '.zip'
