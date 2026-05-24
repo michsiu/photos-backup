@@ -375,8 +375,7 @@ def gallery():
     except Exception:
         photos_json = '{}'
 
-    return f"""
-<!doctype html>
+    return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -869,8 +868,7 @@ initPhotos();
 </script>
 
 </body>
-</html>
-"""
+</html>"""
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
