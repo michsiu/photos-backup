@@ -372,7 +372,7 @@ if __name__ == "__main__":
 raw_base = f"""https://raw.githubusercontent.com/{user}/{repo}/{branch}/"""
 JSON_FILE = "photos.json"
 
-@app.route('/gallery')
+@app.route("/gallery")
 def gallery():
 
     try:
