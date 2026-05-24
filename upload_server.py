@@ -1,137 +1,76 @@
 import os
+import zipfile
 import io
-import json
-import hashlib
-import datetime
+import tempfile
 import shutil
-import re
-import traceback
 import threading
 import time
 from pathlib import Path
 from flask import Flask, request, jsonify
-from PIL import Image
-import piexif
 
 app = Flask(__name__)
 
-# =========================
-# PATH SETUP.
-# =========================
 BASE_DIR = Path(__file__).resolve().parent
-
-PHOTO_DIR = BASE_DIR / "photos"
-THUMB_DIR = BASE_DIR / "thumbs"
-JSON_FILE = BASE_DIR / "photos.json"
-
-PHOTO_DIR.mkdir(parents=True, exist_ok=True)
-THUMB_DIR.mkdir(parents=True, exist_ok=True)
+INCOMING_DIR = BASE_DIR / "incoming"
+INCOMING_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
-
-# =========================
-# DATABASE
-# =========================
-if JSON_FILE.exists():
-    try:
-        photos_db = json.loads(JSON_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        photos_db = {}
-else:
-    photos_db = {}
+ZIP_EXTENSION = '.zip'
 
 def log(msg):
-    print(f"[LOG] {msg}", flush=True)
+    print(f"[UPLOAD] {msg}", flush=True)
 
-# =========================
-# DATE PARSING (EXIF first, then ==boundary==, fallback UTC)
-# =========================
-def get_exif_datetime(image_bytes: bytes) -> datetime.datetime | None:
-    """Extract datetime from EXIF, return timezone-aware datetime or None."""
-    try:
-        exif_dict = piexif.load(image_bytes)
-        for ifd_name in ("Exif", "0th"):
-            ifd = exif_dict.get(ifd_name, {})
-            # Look for DateTimeOriginal (36867), DateTimeDigitized (36868), DateTime (306)
-            for tag in (36867, 36868, 306):
-                if tag in ifd:
-                    dt_str = ifd[tag].decode("utf-8", errors="ignore")
-                    # Format: "YYYY:MM:DD HH:MM:SS"
-                    naive = datetime.datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
-                    # Try to find timezone offset (OffsetTimeOriginal 0x9010, etc.)
-                    offset_tag = None
-                    if ifd_name == "Exif":
-                        offset_tag = ifd.get(0x9010) or ifd.get(0x9011)
-                    if offset_tag:
-                        offset_str = offset_tag.decode("utf-8", errors="ignore")
-                        # Format "+08:00" or "+0800"
-                        if ":" in offset_str:
-                            h, m = map(int, offset_str.split(":"))
-                        else:
-                            h = int(offset_str[:3])
-                            m = int(offset_str[3:5]) if len(offset_str) > 3 else 0
-                        tz = datetime.timezone(datetime.timedelta(hours=h, minutes=m))
-                        return naive.replace(tzinfo=tz)
-                    # No timezone info => return None (we won't guess)
-                    return None
-        return None
-    except Exception:
-        return None
+def safe_filename(name):
+    # 防止目录穿越
+    return os.path.basename(name)
 
-def parse_date_from_boundary(filename: str) -> datetime.datetime | None:
-    """Parse date from 'ISO-DATE==boundary==realname.jpg' pattern. Date must have timezone offset."""
-    if "==boundary==" not in filename:
-        return None
-    date_part = filename.split("==boundary==", 1)[0].strip()
-    # Try common ISO formats with timezone
-    for fmt in [
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%dT%H:%M:%S%Z",
-        "%Y-%m-%d %H:%M:%S%z",
-        "%Y-%m-%dT%H:%M%z",
-        "%Y-%m-%d %H:%M%z",
-    ]:
-        try:
-            return datetime.datetime.strptime(date_part, fmt)
-        except ValueError:
-            continue
-    # Try parsing without timezone and assume Beijing time (+08:00)
-    for fmt in ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"]:
-        try:
-            naive = datetime.datetime.strptime(date_part, fmt)
-            bj_tz = datetime.timezone(datetime.timedelta(hours=8))
-            return naive.replace(tzinfo=bj_tz)
-        except ValueError:
-            continue
-    return None
+def save_file(file_storage):
+    """保存单个文件到 incoming，返回保存的文件名"""
+    fname = safe_filename(file_storage.filename)
+    save_path = INCOMING_DIR / fname
+    # 处理重名（简单加序号）
+    counter = 1
+    while save_path.exists():
+        stem = os.path.splitext(fname)[0]
+        ext = os.path.splitext(fname)[1]
+        save_path = INCOMING_DIR / f"{stem}_{counter}{ext}"
+        counter += 1
+    file_storage.save(save_path)
+    return save_path.name
 
-def get_utc_datetime(image_bytes: bytes, original_filename: str) -> datetime.datetime:
-    """
-    Returns a timezone-aware UTC datetime for the photo.
-    Priority: EXIF -> boundary in filename -> current UTC.
-    """
-    dt = get_exif_datetime(image_bytes)
-    if dt:
-        return dt.astimezone(datetime.timezone.utc)
-    dt = parse_date_from_boundary(original_filename)
-    if dt:
-        return dt.astimezone(datetime.timezone.utc)
-    return datetime.datetime.now(datetime.timezone.utc)
+def extract_zip(zip_path: Path):
+    """解压 ZIP 到 incoming，返回解压出的文件数量"""
+    extracted = []
+    with zipfile.ZipFile(zip_path, 'r') as zf:
+        for member in zf.infolist():
+            # 跳过目录、隐藏文件和不可靠路径
+            if member.is_dir():
+                continue
+            fname = os.path.basename(member.filename)
+            if not fname or fname.startswith('.'):
+                continue
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in ALLOWED_EXTENSIONS:
+                continue
+            # 解压到 incoming
+            target_path = INCOMING_DIR / fname
+            # 处理重名
+            counter = 1
+            while target_path.exists():
+                stem = os.path.splitext(fname)[0]
+                target_path = INCOMING_DIR / f"{stem}_{counter}{ext}"
+                counter += 1
+            with zf.open(member) as source, open(target_path, 'wb') as target:
+                shutil.copyfileobj(source, target)
+            extracted.append(target_path.name)
+    # 删除原 zip
+    zip_path.unlink()
+    return len(extracted)
 
-def get_real_filename(raw_name: str) -> str:
-    """Extract real filename after ==boundary== if present."""
-    if "==boundary==" in raw_name:
-        return raw_name.split("==boundary==", 1)[1].strip()
-    return raw_name
-
-# =========================
-# FRONTEND (modern & clean)
-# =========================
 @app.route("/")
 def index():
-    return """
-<!doctype html>
-<html lang="en">
+    return """<!doctype html>
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -139,78 +78,196 @@ def index():
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-         background: #f0f2f5; color: #1a1a2e; padding: 40px 20px; max-width: 680px; margin: 0 auto; }
-  h1 { font-size: 2rem; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
-  .card { background: white; border-radius: 20px; padding: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); margin-bottom: 24px; }
-  input[type=file] { width: 100%; padding: 14px; border: 2px dashed #d1d5db; border-radius: 12px; cursor: pointer; background: #f9fafb; }
-  .btn-group { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
-  button { padding: 10px 22px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; }
+         background: #f4f6f9; color: #1e293b; padding: 32px 20px; max-width: 700px; margin: 0 auto; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .header h1 { font-size: 2rem; font-weight: 700; }
+  .card { background: white; border-radius: 24px; padding: 32px; box-shadow: 0 12px 32px rgba(0,0,0,0.06); margin-bottom: 24px; }
+  .upload-area { border: 3px dashed #cbd5e1; border-radius: 20px; padding: 48px 24px; text-align: center;
+                 background: #f8fafc; cursor: pointer; transition: all 0.2s; margin-bottom: 20px; }
+  .upload-area:hover { border-color: #6366f1; background: #f1f5f9; }
+  .upload-area input { display: none; }
+  .upload-icon { font-size: 3rem; margin-bottom: 12px; }
+  .upload-text { font-size: 1.2rem; font-weight: 600; color: #475569; }
+  .upload-hint { font-size: 0.9rem; color: #94a3b8; margin-top: 6px; }
+  .btn-group { display: flex; gap: 12px; flex-wrap: wrap; }
+  button { padding: 12px 24px; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;
+           font-size: 1rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
   .btn-upload { background: #4f46e5; color: white; }
+  .btn-upload:hover { background: #4338ca; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(79,70,229,0.3); }
   .btn-stop { background: #ef4444; color: white; }
-  .btn-auto { background: #e5e7eb; color: #1f2937; }
-  button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-  #logBox { margin-top: 16px; background: #0f172a; color: #a7f3d0; padding: 16px; border-radius: 12px;
-            height: 280px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 0.85rem; line-height: 1.6; }
-  .status { margin-top: 10px; font-size: 0.9rem; color: #6b7280; }
-  a { color: #4f46e5; }
+  .btn-stop:hover { background: #dc2626; }
+  .btn-auto { background: #e2e8f0; color: #334155; }
+  .btn-auto.active { background: #6366f1; color: white; }
+  .progress-section { margin-top: 24px; }
+  .progress-bar-bg { background: #e2e8f0; border-radius: 10px; height: 10px; overflow: hidden; }
+  .progress-bar-fill { background: #4f46e5; height: 100%; width: 0%; transition: width 0.3s; }
+  .stats { display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.9rem; color: #64748b; }
+  #logBox { margin-top: 16px; background: #0f172a; color: #a7f3d0; padding: 16px; border-radius: 16px;
+            height: 260px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 0.8rem; line-height: 1.6; }
+  .footer { margin-top: 12px; font-size: 0.85rem; color: #94a3b8; text-align: center; }
 </style>
 </head>
 <body>
-  <h1>📷 Photo Upload</h1>
+  <div class="header">
+    <span style="font-size:2.5rem;">📷</span>
+    <h1>Photo Upload</h1>
+  </div>
+
   <div class="card">
-    <input type="file" id="fileInput" multiple accept="image/*" />
+    <!-- 上传区域 -->
+    <label class="upload-area" id="uploadArea">
+      <div class="upload-icon">⇧</div>
+      <div class="upload-text">点击或拖拽文件到此处</div>
+      <div class="upload-hint">支持 JPG, PNG, GIF, WEBP, ZIP</div>
+      <input type="file" id="fileInput" multiple accept="image/*,.zip" />
+    </label>
+
     <div class="btn-group">
-      <button class="btn-upload" onclick="uploadFiles()">⬆ Upload All</button>
-      <button class="btn-stop" onclick="shutdownServer()">⏹ Stop & Commit</button>
-      <button class="btn-auto" onclick="toggleAuto()" id="autoBtn">Auto Log: OFF</button>
+      <button class="btn-upload" onclick="startUpload()">⬆ 开始上传</button>
+      <button class="btn-stop" onclick="shutdownServer()">⏹ 停止服务</button>
+      <button class="btn-auto" id="autoBtn" onclick="toggleAuto()">📋 自动日志</button>
     </div>
-    <div class="status" id="status">Ready</div>
+
+    <!-- 进度区域 -->
+    <div class="progress-section" id="progressSection" style="display:none;">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+      <div class="stats">
+        <span id="taskCounter">0/0</span>
+        <span id="uploadSpeed">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日志 -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span style="font-weight:600;">📃 日志</span>
+      <span style="font-size:0.8rem; color:#64748b;" id="logStatus">等待上传</span>
+    </div>
     <pre id="logBox"></pre>
   </div>
+
+  <div class="footer">
+    上传完成后点击 <strong>停止服务</strong>，系统将自动处理并提交到仓库。
+  </div>
+
   <script>
     let auto = false, timer;
+    let totalFiles = 0, finishedFiles = 0;
+    let startTime = 0;
+
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const taskCounter = document.getElementById('taskCounter');
+    const uploadSpeed = document.getElementById('uploadSpeed');
+    const logStatus = document.getElementById('logStatus');
+
     function log(msg) {
       const box = document.getElementById('logBox');
-      box.textContent += msg + '\\n';
+      box.textContent += msg + '\n';
       box.scrollTop = box.scrollHeight;
     }
-    async function uploadFiles() {
+
+    function updateProgress() {
+      const pct = totalFiles > 0 ? (finishedFiles / totalFiles * 100) : 0;
+      progressBar.style.width = pct + '%';
+      taskCounter.innerText = `${finishedFiles}/${totalFiles}`;
+
+      if (finishedFiles > 0 && startTime > 0) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const speed = (finishedFiles / elapsed).toFixed(2);
+        uploadSpeed.innerText = `${speed} 个/秒`;
+      }
+
+      if (totalFiles > 0 && finishedFiles === totalFiles) {
+        logStatus.innerText = '全部上传完成 ✅';
+      } else if (totalFiles > 0) {
+        logStatus.innerText = `上传中 ${finishedFiles}/${totalFiles}`;
+      }
+    }
+
+    // 拖拽支持
+    const uploadArea = document.getElementById('uploadArea');
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = '#6366f1';
+      uploadArea.style.background = '#f1f5f9';
+    });
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.style.borderColor = '#cbd5e1';
+      uploadArea.style.background = '#f8fafc';
+    });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = '#cbd5e1';
+      uploadArea.style.background = '#f8fafc';
+      const files = e.dataTransfer.files;
+      document.getElementById('fileInput').files = files;
+    });
+
+    async function startUpload() {
       const files = document.getElementById('fileInput').files;
-      if (!files.length) { log('⚠ No files selected'); return; }
-      for (const f of files) {
-        log('⬆ ' + f.name);
+      if (!files.length) {
+        log('⚠ 请先选择文件');
+        return;
+      }
+
+      totalFiles = files.length;
+      finishedFiles = 0;
+      startTime = Date.now();
+      progressSection.style.display = 'block';
+      updateProgress();
+      log(`开始上传 ${totalFiles} 个文件...`);
+
+      const tasks = Array.from(files).map(async (f) => {
         const fd = new FormData();
         fd.append('image', f);
         try {
           const resp = await fetch('/upload', { method: 'POST', body: fd });
           const json = await resp.json();
           if (json.ok) {
-            log('✔ ' + f.name + '  →  ' + json.sha.substring(0,8));
+            finishedFiles++;
+            updateProgress();
+            log('✔ ' + f.name);
           } else {
-            log('❌ ' + f.name + '  error: ' + (json.error || 'unknown'));
+            finishedFiles++;
+            updateProgress();
+            log('❌ ' + f.name + ' 失败: ' + (json.error || '未知错误'));
           }
         } catch (e) {
-          log('❌ ' + f.name + '  network error: ' + e);
+          finishedFiles++;
+          updateProgress();
+          log('❌ ' + f.name + ' 网络错误: ' + e);
         }
+      });
+
+      await Promise.all(tasks);
+      log('✅ 批次上传结束');
+      if (finishedFiles === totalFiles) {
+        log('🎉 所有文件上传成功，可以点击“停止服务”');
       }
-      log('✅ Batch finished');
     }
+
     async function shutdownServer() {
-      log('🛑 Sending shutdown...');
+      log('🛑 正在停止服务...');
       try {
         const resp = await fetch('/shutdown', { method: 'POST' });
         const json = await resp.json();
-        log('✔ Server stopped: ' + JSON.stringify(json));
-        document.getElementById('status').innerText = 'Server stopped – changes will be committed';
+        log('✔ 服务已停止: ' + JSON.stringify(json));
+        logStatus.innerText = '服务已停止 – 正在处理照片';
       } catch (e) {
-        log('❌ Shutdown error: ' + e);
+        log('❌ 停止失败: ' + e);
       }
     }
+
     function toggleAuto() {
       auto = !auto;
       const btn = document.getElementById('autoBtn');
       if (auto) {
-        btn.innerText = 'Auto Log: ON';
+        btn.classList.add('active');
+        btn.innerHTML = '📋 自动日志 (开)';
         timer = setInterval(async () => {
           try {
             const r = await fetch('/logs');
@@ -219,119 +276,52 @@ def index():
           } catch (e) { log('[AUTO ERR] ' + e); }
         }, 3000);
       } else {
-        btn.innerText = 'Auto Log: OFF';
+        btn.classList.remove('active');
+        btn.innerHTML = '📋 自动日志';
         clearInterval(timer);
       }
     }
   </script>
 </body>
-</html>
-"""
+</html>"""
 
-# =========================
-# UPLOAD HANDLER
-# =========================
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
         file = request.files.get("image")
-        if not file:
-            return jsonify({"ok": False, "error": "no file"}), 400
+        if not file or file.filename == '':
+            return jsonify({"ok": False, "error": "无文件"}), 400
 
-        data = file.read()
-        sha = hashlib.sha256(data).hexdigest()
         ext = os.path.splitext(file.filename)[1].lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            return jsonify({"ok": False, "error": f"unsupported extension {ext}"}), 400
-
-        # Determine timestamp and year (UTC)
-        dt_utc = get_utc_datetime(data, file.filename)
-        year = str(dt_utc.year)
-        date_iso = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        # Prepare paths
-        photo_rel = f"photos/{year}/{sha}{ext}"
-        thumb_rel = f"thumbs/{year}/{sha}{ext}"
-        photo_path = BASE_DIR / photo_rel
-        thumb_path = BASE_DIR / thumb_rel
-        photo_path.parent.mkdir(parents=True, exist_ok=True)
-        thumb_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Save original
-        with open(photo_path, "wb") as f:
-            f.write(data)
-            f.flush()
-            os.fsync(f.fileno())
-
-        # Generate thumbnail
-        try:
-            img = Image.open(io.BytesIO(data))
-            img.thumbnail((400, 400))
-            # Handle transparency
-            if img.mode in ("RGBA", "LA", "P"):
-                img = img.convert("RGB")
-            img.save(thumb_path)
-        except Exception as e:
-            log(f"Thumbnail generation failed: {e}")
-            shutil.copyfile(photo_path, thumb_path)
-
-        # Update database
-        real_name = get_real_filename(file.filename)
-        photos_db[sha] = {
-            "fileName": real_name,
-            "url": photo_rel,          # relative path
-            "thumbnail": thumb_rel,    # relative path
-            "year": year,
-            "date": date_iso,
-            "sha256": sha
-        }
-
-        # Atomic write to JSON
-        tmp_json = JSON_FILE.with_suffix(".tmp")
-        tmp_json.write_text(json.dumps(photos_db, indent=2, ensure_ascii=False), encoding="utf-8")
-        tmp_json.replace(JSON_FILE)
-
-        log(f"Stored {sha[:8]} -> {photo_rel}")
-        return jsonify({"ok": True, "sha": sha})
-
+        if ext == ZIP_EXTENSION:
+            # 保存 ZIP 并解压
+            zip_path = INCOMING_DIR / safe_filename(file.filename)
+            file.save(zip_path)
+            count = extract_zip(zip_path)
+            log(f"ZIP 解压完成，释放 {count} 张图片")
+            return jsonify({"ok": True, "zip": True, "extracted": count})
+        elif ext in ALLOWED_EXTENSIONS:
+            saved_name = save_file(file)
+            log(f"图片已保存: {saved_name}")
+            return jsonify({"ok": True, "name": saved_name})
+        else:
+            return jsonify({"ok": False, "error": f"不支持的文件类型 {ext}"}), 400
     except Exception as e:
-        log("UPLOAD ERROR")
-        log(str(e))
-        log(traceback.format_exc())
+        log(f"上传错误: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
-# =========================
-# LOGS API (for auto log)
-# =========================
 @app.route("/logs")
 def logs():
-    return jsonify({
-        "status": "running",
-        "time": datetime.datetime.utcnow().isoformat()
-    })
+    return jsonify({"status": "uploading", "time": __import__('datetime').datetime.utcnow().isoformat()})
 
-# =========================
-# GRACEFUL SHUTDOWN
-# =========================
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
-    log("SHUTDOWN TRIGGERED – final save...")
-    # Final flush of photos.json
-    try:
-        JSON_FILE.write_text(json.dumps(photos_db, indent=2, ensure_ascii=False), encoding="utf-8")
-    except Exception as e:
-        log(f"Final write error: {e}")
-
+    log("收到关闭信号")
     def killer():
         time.sleep(0.5)
         os._exit(0)
-
     threading.Thread(target=killer).start()
-    return jsonify({"ok": True, "message": "shutting down"})
+    return jsonify({"ok": True, "message": "服务关闭中"})
 
-# =========================
-# MAIN
-# =========================
 if __name__ == "__main__":
-    log(f"Working directory: {BASE_DIR}")
     app.run(host="0.0.0.0", port=5000, debug=False)
