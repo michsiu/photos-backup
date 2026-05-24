@@ -12,7 +12,7 @@ from PIL import Image
 app = Flask(__name__)
 
 # =========================
-# 固定路径（绝对稳定）
+# FIX: repo root
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -24,7 +24,7 @@ PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
 
 # =========================
-# 数据库
+# DB
 # =========================
 if JSON_FILE.exists():
     photos_db = json.loads(JSON_FILE.read_text(encoding="utf-8"))
@@ -35,7 +35,7 @@ def log(msg):
     print(f"[LOG] {msg}", flush=True)
 
 # =========================
-# 主页（日志区保留版）
+# HOME UI (FULL)
 # =========================
 @app.route("/")
 def index():
@@ -45,9 +45,9 @@ def index():
 <head>
 <meta charset="utf-8">
 <title>Photo Server</title>
+
 <style>
 body { font-family: sans-serif; padding: 20px; }
-
 #log {
     margin-top: 15px;
     padding: 10px;
@@ -58,21 +58,28 @@ body { font-family: sans-serif; padding: 20px; }
     font-family: monospace;
     font-size: 12px;
 }
-
-button { margin-top: 10px; }
+button { margin: 5px; }
 </style>
 </head>
+
 <body>
 
 <h1>📷 Photo Upload Server</h1>
 
 <input type="file" id="file" multiple />
 <br>
-<button onclick="upload()">上传</button>
+
+<button onclick="upload()">Upload</button>
+<button onclick="shutdown()">Stop Server</button>
+<button onclick="toggleAuto()">Auto Log: OFF</button>
 
 <div id="log"></div>
 
 <script>
+
+let auto = false;
+let timer = null;
+
 function log(msg){
     const el = document.getElementById("log");
     el.innerHTML += msg + "<br>";
@@ -82,13 +89,8 @@ function log(msg){
 async function upload(){
     const files = document.getElementById('file').files;
 
-    if(!files.length){
-        log("⚠ 没有选择文件");
-        return;
-    }
-
-    for(let f of files){
-        log("➡ 上传: " + f.name);
+    for (let f of files){
+        log("Uploading: " + f.name);
 
         const fd = new FormData();
         fd.append("image", f);
@@ -100,13 +102,44 @@ async function upload(){
             });
 
             const j = await r.json();
-            log("✔ 成功: " + f.name + " -> " + JSON.stringify(j));
+            log("OK: " + f.name + " => " + JSON.stringify(j));
 
         } catch(e){
-            log("❌ 失败: " + f.name + " -> " + e);
+            log("FAIL: " + e);
         }
     }
 }
+
+async function shutdown(){
+    log("Stopping server...");
+    await fetch("/shutdown", { method: "POST" });
+    log("Shutdown sent");
+}
+
+function toggleAuto(){
+    auto = !auto;
+
+    const btn = document.getElementsByTagName("button")[2];
+
+    if(auto){
+        btn.innerText = "Auto Log: ON";
+
+        timer = setInterval(async () => {
+            try {
+                const r = await fetch("/logs");
+                const j = await r.json();
+                log("[AUTO] " + JSON.stringify(j));
+            } catch(e){
+                log("[AUTO ERROR] " + e);
+            }
+        }, 2000);
+
+    } else {
+        btn.innerText = "Auto Log: OFF";
+        clearInterval(timer);
+    }
+}
+
 </script>
 
 </body>
@@ -114,13 +147,11 @@ async function upload(){
 """
 
 # =========================
-# upload
+# UPLOAD
 # =========================
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
-        log("UPLOAD HIT")
-
         file = request.files.get("image")
         if not file:
             return jsonify({"error": "no file"}), 400
@@ -142,15 +173,12 @@ def upload():
         thumb_path.parent.mkdir(parents=True, exist_ok=True)
 
         log(f"PHOTO: {photo_path}")
-        log(f"JSON: {JSON_FILE}")
 
-        # 写图
         with open(photo_path, "wb") as f:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
 
-        # 缩略图
         try:
             img = Image.open(io.BytesIO(data))
             img.thumbnail((400, 400))
@@ -161,7 +189,6 @@ def upload():
             log(f"thumb error: {e}")
             shutil.copy(photo_path, thumb_path)
 
-        # JSON
         photos_db[sha] = {
             "name": file.filename,
             "path": str(photo_path.relative_to(BASE_DIR)),
@@ -173,8 +200,6 @@ def upload():
         tmp.write_text(json.dumps(photos_db, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(JSON_FILE)
 
-        log("SAVE OK")
-
         return jsonify({"ok": True, "sha": sha})
 
     except Exception as e:
@@ -184,7 +209,17 @@ def upload():
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# shutdown
+# LOG API (for auto mode)
+# =========================
+@app.route("/logs")
+def logs():
+    return jsonify({
+        "status": "running",
+        "time": datetime.datetime.utcnow().isoformat()
+    })
+
+# =========================
+# SHUTDOWN
 # =========================
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
@@ -195,7 +230,7 @@ def shutdown():
     return jsonify({"ok": True})
 
 # =========================
-# main
+# MAIN
 # =========================
 if __name__ == "__main__":
     log(f"BASE_DIR = {BASE_DIR}")
