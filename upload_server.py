@@ -380,12 +380,15 @@ def api_photos():
     return jsonify(photos_list)
     
 
+
 @app.route('/gallery')
 def gallery():
-    # 构造 raw 链接前缀
-    repo = os.environ.get('GITHUB_REPOSITORY', 'michsiu/photos-backup')
-    branch = os.environ.get('GITHUB_REF', 'refs/heads/main').replace('refs/heads/', '')
-    raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}"
+    # 直接读 photos.json，把数据嵌入页面
+    try:
+        with open(JSON_FILE, 'r', encoding='utf-8') as f:
+            photos_json = f.read()
+    except Exception:
+        photos_json = '{}'
 
     return f"""
 <!doctype html>
@@ -441,29 +444,34 @@ def gallery():
 </div>
 
 <script>
-  const RAW_BASE = "{raw_base}";
+  // 服务端直接注入数据，无需额外请求
+  var ALL_PHOTOS_DATA = {photos_json};
+
   const PER_PAGE = 20;
   let allPhotos = [];
   let filteredPhotos = [];
   let currentPage = 1;
   let totalPages = 1;
 
-  // 加载数据
-  fetch('/api/photos')
-    .then(r => r.json())
-    .then(data => {{
-      allPhotos = data;
-      // 填充年份下拉
-      const years = [...new Set(data.map(p => p.year))].sort();
-      const yearSelect = document.getElementById('yearFilter');
-      years.forEach(y => {{
-        const opt = document.createElement('option');
-        opt.value = y;
-        opt.textContent = y;
-        yearSelect.appendChild(opt);
-      }});
-      applyFilters();
+  // 将 object 转成数组，并保留 sha256
+  function initPhotos() {{
+    const raw = ALL_PHOTOS_DATA;
+    allPhotos = Object.keys(raw).map(sha => {{
+      const item = raw[sha];
+      item.sha256 = sha;
+      return item;
     }});
+    // 填充年份下拉
+    const years = [...new Set(allPhotos.map(p => p.year))].sort();
+    const yearSelect = document.getElementById('yearFilter');
+    years.forEach(y => {{
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = y;
+      yearSelect.appendChild(opt);
+    }});
+    applyFilters();
+  }}
 
   function applyFilters() {{
     const search = document.getElementById('search').value.toLowerCase();
@@ -476,7 +484,6 @@ def gallery():
       return matchName && matchYear;
     }});
 
-    // 排序
     switch(sort) {{
       case 'date-asc':
         filteredPhotos.sort((a,b) => a.date.localeCompare(b.date));
@@ -491,14 +498,10 @@ def gallery():
         filteredPhotos.sort((a,b) => b.fileName.localeCompare(a.fileName));
         break;
       case 'random':
-        // Fisher-Yates 洗牌
         for (let i = filteredPhotos.length - 1; i > 0; i--) {{
           const j = Math.floor(Math.random() * (i + 1));
           [filteredPhotos[i], filteredPhotos[j]] = [filteredPhotos[j], filteredPhotos[i]];
         }}
-        break;
-      default:
-        // 保持 API 返回顺序（即原始顺序）
         break;
     }}
 
@@ -508,9 +511,7 @@ def gallery():
     renderPagination();
   }}
 
-  function resetAndRender() {{
-    applyFilters();
-  }}
+  function resetAndRender() {{ applyFilters(); }}
 
   function getPagePhotos(page) {{
     const start = (page - 1) * PER_PAGE;
@@ -524,8 +525,8 @@ def gallery():
     pagePhotos.forEach(p => {{
       const card = document.createElement('div');
       card.className = 'card';
-      const imgUrl = RAW_BASE + '/' + p.url;
-      const thumbUrl = RAW_BASE + '/' + p.thumbnail;
+      const imgUrl = '/' + p.url;
+      const thumbUrl = '/' + p.thumbnail;
       card.innerHTML = `
         <a href="${{imgUrl}}" target="_blank">
           <img src="${{thumbUrl}}" loading="lazy" alt="${{p.fileName}}">
@@ -572,7 +573,7 @@ def gallery():
     window.scrollTo({{ top: 0, behavior: 'smooth' }});
   }}
 
-  // 滚动自动加载（Intersection Observer）
+  // 滚动自动加载
   const sentinel = document.getElementById('sentinel');
   const observer = new IntersectionObserver((entries) => {{
     if (entries[0].isIntersecting && currentPage < totalPages) {{
@@ -582,6 +583,9 @@ def gallery():
     }}
   }}, {{ threshold: 0.1 }});
   observer.observe(sentinel);
+
+  // 启动
+  initPhotos();
 </script>
 </body>
 </html>
