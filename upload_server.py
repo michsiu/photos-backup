@@ -6,7 +6,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__)
 
@@ -357,6 +357,220 @@ def shutdown():
         os._exit(0)
     threading.Thread(target=killer).start()
     return jsonify({"ok": True, "message": "服务关闭中"})
+    
+# 静态文件服务：让浏览器可访问 photos 和 thumbs 目录
+@app.route('/photos/<path:filename>')
+def serve_photos(filename):
+    return send_from_directory(PHOTO_DIR, filename)
+
+@app.route('/thumbs/<path:filename>')
+def serve_thumbs(filename):
+    return send_from_directory(THUMB_DIR, filename)
+    
+@app.route('/api/photos')
+def api_photos():
+    with open(JSON_FILE, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    # 转换为列表方便前端处理，同时保留 key（sha256）
+    photos_list = []
+    for sha, info in data.items():
+        item = dict(info)
+        item['sha256'] = sha  # 确保有 sha256 字段
+        photos_list.append(item)
+    return jsonify(photos_list)
+    
+@app.route('/gallery')
+def gallery():
+    return r"""
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photo Gallery</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: #f4f6f9; color: #1e293b; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin-bottom: 20px; text-align: center; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: center; }
+    .controls input, .controls select { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; }
+    .controls input { flex: 1; min-width: 200px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); transition: transform 0.2s; }
+    .card:hover { transform: translateY(-4px); }
+    .card img { width: 100%; height: 180px; object-fit: cover; display: block; }
+    .card-info { padding: 10px; font-size: 0.85rem; }
+    .card-info .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-info .date { color: #64748b; font-size: 0.8rem; margin-top: 4px; }
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 24px 0; flex-wrap: wrap; }
+    .pagination button, .pagination span { padding: 6px 12px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer; }
+    .pagination button:disabled { opacity: 0.5; cursor: default; }
+    .pagination .active { background: #4f46e5; color: white; border-color: #4f46e5; }
+    #sentinel { height: 1px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>📷 Photo Gallery</h1>
+  
+  <div class="controls">
+    <input type="text" id="search" placeholder="🔍 搜索文件名..." oninput="resetAndRender()">
+    <select id="yearFilter" onchange="resetAndRender()">
+      <option value="">所有年份</option>
+    </select>
+    <select id="sortBy" onchange="resetAndRender()">
+      <option value="date-asc">时间 ↑</option>
+      <option value="date-desc" selected>时间 ↓</option>
+      <option value="name-asc">名称 A-Z</option>
+      <option value="name-desc">名称 Z-A</option>
+      <option value="original">原始顺序</option>
+    </select>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  
+  <div class="pagination" id="pagination"></div>
+  <div id="sentinel"></div>
+</div>
+
+<script>
+  const PER_PAGE = 20;
+  let allPhotos = [];
+  let filteredPhotos = [];
+  let currentPage = 1;
+  let totalPages = 1;
+
+  // 加载数据
+  fetch('/api/photos')
+    .then(r => r.json())
+    .then(data => {
+      allPhotos = data;
+      // 填充年份下拉
+      const years = [...new Set(data.map(p => p.year))].sort();
+      const yearSelect = document.getElementById('yearFilter');
+      years.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        yearSelect.appendChild(opt);
+      });
+      applyFilters();
+    });
+
+  function applyFilters() {
+    const search = document.getElementById('search').value.toLowerCase();
+    const year = document.getElementById('yearFilter').value;
+    const sort = document.getElementById('sortBy').value;
+
+    filteredPhotos = allPhotos.filter(p => {
+      const matchName = !search || p.fileName.toLowerCase().includes(search);
+      const matchYear = !year || p.year === year;
+      return matchName && matchYear;
+    });
+
+    // 排序
+    switch(sort) {
+      case 'date-asc':
+        filteredPhotos.sort((a,b) => a.date.localeCompare(b.date));
+        break;
+      case 'date-desc':
+        filteredPhotos.sort((a,b) => b.date.localeCompare(a.date));
+        break;
+      case 'name-asc':
+        filteredPhotos.sort((a,b) => a.fileName.localeCompare(b.fileName));
+        break;
+      case 'name-desc':
+        filteredPhotos.sort((a,b) => b.fileName.localeCompare(a.fileName));
+        break;
+      case 'original':
+        // 保持 API 返回顺序（即 JSON 顺序）
+        break;
+    }
+
+    totalPages = Math.ceil(filteredPhotos.length / PER_PAGE);
+    currentPage = 1;
+    renderPage();
+    renderPagination();
+  }
+
+  function resetAndRender() {
+    applyFilters();
+  }
+
+  function getPagePhotos(page) {
+    const start = (page - 1) * PER_PAGE;
+    return filteredPhotos.slice(start, start + PER_PAGE);
+  }
+
+  function renderPage() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    const pagePhotos = getPagePhotos(currentPage);
+    pagePhotos.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <a href="/${p.url}" target="_blank">
+          <img src="/${p.thumbnail}" loading="lazy" alt="${p.fileName}">
+        </a>
+        <div class="card-info">
+          <div class="name" title="${p.fileName}">${p.fileName}</div>
+          <div class="date">${p.date}</div>
+        </div>`;
+      grid.appendChild(card);
+    });
+  }
+
+  function renderPagination() {
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const createBtn = (text, page, disabled = false, cls = '') => {
+      const btn = document.createElement('button');
+      btn.textContent = text;
+      btn.disabled = disabled;
+      btn.className = cls;
+      btn.onclick = () => { goToPage(page); };
+      return btn;
+    };
+
+    pagination.appendChild(createBtn('«', 1, currentPage === 1));
+    pagination.appendChild(createBtn('‹', currentPage - 1, currentPage === 1));
+
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = createBtn(i, i, false, i === currentPage ? 'active' : '');
+      pagination.appendChild(btn);
+    }
+
+    pagination.appendChild(createBtn('›', currentPage + 1, currentPage === totalPages));
+    pagination.appendChild(createBtn('»', totalPages, currentPage === totalPages));
+  }
+
+  function goToPage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    renderPage();
+    renderPagination();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // 滚动自动加载下一页（IntersectionObserver）
+  const sentinel = document.getElementById('sentinel');
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && currentPage < totalPages) {
+      currentPage++;
+      renderPage();
+      renderPagination();
+    }
+  }, { threshold: 0.1 });
+  observer.observe(sentinel);
+</script>
+</body>
+</html>
+"""
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
