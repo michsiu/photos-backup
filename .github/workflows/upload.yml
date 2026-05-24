@@ -12,7 +12,6 @@ jobs:
 
     env:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -27,10 +26,11 @@ jobs:
         run: |
           pip install flask pillow piexif
 
-      - name: Download and setup ngrok
+      - name: Install ngrok
         run: |
-          wget -q -O ngrok.zip https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-          unzip -o ngrok.zip
+          wget -q https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+          unzip -o ngrok-stable-linux-amd64.zip
+
           chmod +x ngrok
 
           ./ngrok authtoken "$NGROK_AUTH_TOKEN"
@@ -40,78 +40,35 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
 
-      - name: Start upload server + ngrok
+      - name: Start upload server
         run: |
           python upload_server.py > server.log 2>&1 &
 
-          sleep 2
+      - name: Start ngrok
+        run: |
+          ./ngrok http 5000 > ngrok.log 2>&1 &
 
-          ./ngrok http 5000 --log=stdout > ngrok.log 2>&1 &
-
-          echo "Waiting for ngrok tunnel..."
-
-          NGROK_URL=""
+      - name: Get ngrok url
+        run: |
+          echo "Waiting for ngrok..."
 
           for i in {1..60}; do
-            if curl -s http://127.0.0.1:4040/api/tunnels > /tmp/ngrok.json 2>/dev/null; then
 
-              NGROK_URL=$(python3 - <<'PY'
-import json
+            URL=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'https://[^"]*' | head -n 1)
 
-try:
-    with open("/tmp/ngrok.json") as f:
-        data = json.load(f)
-
-    tunnels = data.get("tunnels", [])
-
-    for t in tunnels:
-        url = t.get("public_url", "")
-        if url.startswith("https://"):
-            print(url)
-            break
-
-except:
-    pass
-PY
-)
-
-              if [ ! -z "$NGROK_URL" ]; then
-                break
-              fi
-            fi
-
-            echo "Attempt $i/60..."
-
-            if [ $i -eq 10 ]; then
-              echo "========== NGROK LOG =========="
-              tail -20 ngrok.log || true
-              echo "================================"
+            if [ ! -z "$URL" ]; then
+              echo ""
+              echo "=================================="
+              echo "UPLOAD URL:"
+              echo "$URL"
+              echo "=================================="
+              echo ""
+              break
             fi
 
             sleep 1
           done
 
-          if [ -z "$NGROK_URL" ]; then
-            echo "Failed to get ngrok URL"
-
-            echo "========== NGROK LOG =========="
-            cat ngrok.log || true
-
-            echo "========== SERVER LOG =========="
-            cat server.log || true
-
-            exit 1
-          fi
-
-          echo ""
-          echo "=============================================="
-          echo " Photo Upload Server Running"
-          echo ""
-          echo " Upload URL:"
-          echo " $NGROK_URL"
-          echo ""
-          echo "=============================================="
-          echo ""
-
-          echo "Keeping workflow alive..."
+      - name: Keep alive
+        run: |
           tail -f /dev/null
