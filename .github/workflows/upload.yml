@@ -28,12 +28,12 @@ jobs:
 
       - name: Install ngrok
         run: |
-          wget -q https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-          unzip -o ngrok-stable-linux-amd64.zip
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
+          unzip -o ngrok-v3-stable-linux-amd64.zip
 
           chmod +x ngrok
 
-          ./ngrok authtoken "$NGROK_AUTH_TOKEN"
+          ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
 
       - name: Configure git
         run: |
@@ -46,48 +46,43 @@ jobs:
 
       - name: Start ngrok
         run: |
-          ./ngrok http 5000 --log=stdout > ngrok.log 2>&1 &
+          ./ngrok http 5000 > ngrok.log 2>&1 &
 
-      - name: Print ngrok URL
+      - name: Wait and print URL
         run: |
-          echo "Waiting for ngrok tunnel..."
+          echo "Waiting for ngrok..."
 
           URL=""
 
           for i in {1..60}; do
 
-            URL=$(curl -s http://127.0.0.1:4040/api/tunnels \
-              | grep -o 'https://[^"]*' \
-              | head -n 1)
+            URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.ngrok-free\.app' ngrok.log | head -n 1)
 
             if [ ! -z "$URL" ]; then
               break
             fi
 
-            echo "Attempt $i/60..."
             sleep 1
           done
 
+          echo ""
+          echo "========== NGROK LOG =========="
+          cat ngrok.log || true
+          echo "================================"
+
           if [ -z "$URL" ]; then
             echo "Failed to get ngrok URL"
-            echo ""
-            echo "========== NGROK LOG =========="
-            cat ngrok.log || true
-            echo "================================"
             exit 1
           fi
 
           echo ""
-          echo "=================================================="
-          echo " PHOTO UPLOAD SERVER READY"
+          echo "===================================="
+          echo "UPLOAD SERVER READY"
           echo ""
-          echo " Upload URL:"
-          echo " $URL"
+          echo "$URL"
           echo ""
-          echo "=================================================="
-          echo ""
+          echo "===================================="
 
       - name: Keep workflow alive
         run: |
-          echo "Workflow running..."
           tail -f /dev/null
