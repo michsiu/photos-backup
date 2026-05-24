@@ -76,91 +76,1595 @@ def extract_zip(zip_path: Path):
 def index():
     return """
 
-                .upload-inner{
-  position:absolute;
-  inset:0;
+                <!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Upload</title>
 
-  display:flex;
-  flex-direction:column;
+<style>
+:root{
+    --bg:#f0f2f7;
+    --card-bg:#ffffff;
 
-  align-items:center;
-  justify-content:center;
+    --primary:#5b5fef;
+    --primary-hover:#4a4edb;
+    --primary-light:#eef0ff;
 
-  text-align:center;
+    --danger:#f04438;
+    --danger-hover:#d92d20;
+    --danger-light:#fef3f2;
 
-  padding:42px 28px;
+    --text:#1e293b;
+    --text-secondary:#64748b;
+    --text-muted:#94a3b8;
 
-  gap:18px;
+    --border:#e8ecf1;
+    --border-hover:#c5c9d6;
+
+    --upload-bg:#f9fafc;
+
+    --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:0 8px 30px rgba(0,0,0,.06);
+    --shadow-lg:0 16px 48px rgba(0,0,0,.08);
+    --shadow-primary:0 8px 24px rgba(91,95,239,.28);
+
+    --radius-sm:10px;
+    --radius:16px;
+    --radius-lg:20px;
+    --radius-xl:24px;
+
+    --font-mono:
+        'SF Mono',
+        'JetBrains Mono',
+        'Fira Code',
+        Consolas,
+        Monaco,
+        monospace;
+
+    --transition:.2s cubic-bezier(.4,0,.2,1);
+    --transition-spring:.35s cubic-bezier(.34,1.56,.64,1);
 }
 
-.upload-glow{
-  width:110px;
-  height:110px;
-  border-radius:30px;
-
-  background:
-    radial-gradient(circle at 30% 30%,#a5b4fc,transparent 60%),
-    linear-gradient(135deg,#4f46e5,#7c3aed);
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  font-size:3rem;
-
-  box-shadow:
-    0 20px 60px rgba(99,102,241,.45),
-    inset 0 0 30px rgba(255,255,255,.25);
-
-  flex-shrink:0;
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
 }
 
-.upload-title{
-  font-size:1.6rem;
-  font-weight:800;
-
-  line-height:1.4;
-
-  max-width:100%;
+html,body{
+    min-height:100%;
 }
 
-.upload-desc{
-  font-size:1rem;
+body{
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
 
-  line-height:1.9;
+    background:var(--bg);
 
-  color:#cbd5e1;
+    color:var(--text);
 
-  max-width:520px;
+    padding:28px 16px 40px;
+
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+
+    background-image:
+        radial-gradient(
+            ellipse at 30% 10%,
+            rgba(91,95,239,.04) 0%,
+            transparent 60%
+        ),
+        radial-gradient(
+            ellipse at 70% 90%,
+            rgba(91,95,239,.03) 0%,
+            transparent 60%
+        );
 }
 
-.upload-tags{
-  display:flex;
+.container{
+    width:100%;
+    max-width:680px;
 
-  flex-wrap:wrap;
-
-  justify-content:center;
-
-  gap:12px;
-
-  margin-top:4px;
+    display:flex;
+    flex-direction:column;
+    gap:20px;
 }
 
-.tag{
-  padding:9px 15px;
+/* Header */
 
-  border-radius:999px;
-
-  background:rgba(255,255,255,.06);
-
-  border:1px solid rgba(255,255,255,.08);
-
-  color:#cbd5e1;
-
-  font-size:.84rem;
-
-  line-height:1;
+.header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:4px 0;
 }
+
+.header-icon{
+    width:50px;
+    height:50px;
+
+    border-radius:16px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #5b5fef 0%,
+            #7c7ff6 100%
+        );
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    font-size:1.6rem;
+
+    box-shadow:
+        0 6px 18px rgba(91,95,239,.22);
+
+    flex-shrink:0;
+}
+
+.header-info h1{
+    font-size:1.55rem;
+    font-weight:700;
+
+    color:#1e293b;
+
+    letter-spacing:-.02em;
+
+    line-height:1.2;
+}
+
+.header-info span{
+    font-size:.82rem;
+    color:var(--text-secondary);
+    font-weight:500;
+}
+
+/* Card */
+
+.card{
+    background:var(--card-bg);
+
+    border-radius:var(--radius-xl);
+
+    padding:28px;
+
+    box-shadow:var(--shadow-md);
+
+    border:1px solid var(--border);
+
+    transition:box-shadow var(--transition);
+}
+
+.card:hover{
+    box-shadow:var(--shadow-lg);
+}
+
+/* Upload Area */
+
+.upload-area{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+
+    gap:12px;
+
+    border:2px dashed #dde1e9;
+
+    border-radius:var(--radius-lg);
+
+    padding:42px 24px;
+
+    background:var(--upload-bg);
+
+    cursor:pointer;
+
+    transition:all var(--transition-spring);
+
+    position:relative;
+
+    overflow:hidden;
+
+    user-select:none;
+
+    -webkit-tap-highlight-color:transparent;
+
+    margin-bottom:14px;
+
+    min-height:240px;
+}
+
+.upload-area::before{
+    content:'';
+
+    position:absolute;
+    inset:0;
+
+    background:
+        radial-gradient(
+            circle at 50% 0%,
+            rgba(91,95,239,.04) 0%,
+            transparent 60%
+        );
+
+    opacity:0;
+
+    transition:opacity var(--transition);
+
+    pointer-events:none;
+}
+
+.upload-area:hover{
+    border-color:#bcc1d8;
+
+    background:#f6f7fb;
+
+    transform:translateY(-1px);
+
+    box-shadow:
+        0 4px 16px rgba(91,95,239,.06);
+}
+
+.upload-area:hover::before{
+    opacity:1;
+}
+
+.upload-area.dragover{
+    border-color:var(--primary)!important;
+
+    background:var(--primary-light)!important;
+
+    transform:scale(1.01);
+
+    box-shadow:
+        0 8px 28px rgba(91,95,239,.14);
+}
+
+.upload-area input{
+    display:none;
+}
+
+.upload-icon-wrap{
+    width:64px;
+    height:64px;
+
+    border-radius:50%;
+
+    background:#eef0ff;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    font-size:1.9rem;
+
+    margin-bottom:4px;
+
+    transition:all var(--transition-spring);
+
+    pointer-events:none;
+
+    flex-shrink:0;
+}
+
+.upload-area.dragover .upload-icon-wrap{
+    transform:scale(1.08);
+    background:#dde0ff;
+}
+
+.upload-text{
+    font-size:1.15rem;
+
+    font-weight:700;
+
+    color:#334155;
+
+    line-height:1.5;
+
+    text-align:center;
+
+    pointer-events:none;
+
+    transition:color var(--transition);
+
+    max-width:100%;
+}
+
+.upload-hint{
+    font-size:.92rem;
+
+    color:var(--text-muted);
+
+    line-height:1.8;
+
+    text-align:center;
+
+    margin-top:0;
+
+    pointer-events:none;
+
+    transition:color var(--transition);
+
+    max-width:100%;
+}
+
+.upload-badge{
+    display:inline-flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    gap:6px;
+
+    font-size:.78rem;
+
+    line-height:1.2;
+
+    color:var(--text-muted);
+
+    background:#f1f5f9;
+
+    border-radius:999px;
+
+    padding:8px 14px;
+
+    margin-top:2px;
+
+    pointer-events:none;
+
+    letter-spacing:.02em;
+
+    white-space:nowrap;
+}
+
+.upload-badge span{
+    font-weight:600;
+}
+
+/* File List */
+
+.file-list{
+    margin-bottom:14px;
+
+    max-height:170px;
+
+    overflow-y:auto;
+
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.file-list:empty{
+    display:none;
+}
+
+.file-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+
+    padding:10px 14px;
+
+    background:#f8fafc;
+
+    border-radius:var(--radius-sm);
+
+    border:1px solid transparent;
+
+    transition:all var(--transition);
+}
+
+.file-item:hover{
+    background:#f1f5f9;
+    border-color:#e2e8f0;
+}
+
+.file-item-icon{
+    width:34px;
+    height:34px;
+
+    border-radius:8px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:#eef0ff;
+
+    color:var(--primary);
+
+    flex-shrink:0;
+}
+
+.file-item-info{
+    flex:1;
+    min-width:0;
+
+    display:flex;
+    flex-direction:column;
+}
+
+.file-item-name{
+    font-size:.88rem;
+    font-weight:500;
+
+    color:#334155;
+
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+.file-item-size{
+    font-size:.75rem;
+    color:var(--text-muted);
+}
+
+.file-item-badge{
+    flex-shrink:0;
+
+    font-size:.7rem;
+
+    padding:3px 8px;
+
+    border-radius:12px;
+
+    background:#e2e8f0;
+
+    color:#64748b;
+
+    text-transform:uppercase;
+}
+
+/* Buttons */
+
+.btn-group{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+button{
+    padding:11px 22px;
+
+    border:none;
+
+    border-radius:var(--radius);
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    font-size:.93rem;
+
+    transition:all var(--transition-spring);
+
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+
+    gap:7px;
+
+    white-space:nowrap;
+}
+
+button:active{
+    transform:scale(.96);
+}
+
+.btn-upload{
+    background:var(--primary);
+
+    color:#fff;
+
+    flex:1 1 auto;
+
+    min-width:130px;
+
+    box-shadow:
+        0 4px 14px rgba(91,95,239,.25);
+}
+
+.btn-upload:hover{
+    background:var(--primary-hover);
+
+    transform:translateY(-2px);
+
+    box-shadow:var(--shadow-primary);
+}
+
+.btn-stop{
+    background:#fff;
+
+    color:var(--danger);
+
+    border:1.5px solid #fecaca;
+}
+
+.btn-stop:hover{
+    background:var(--danger-light);
+
+    border-color:var(--danger);
+}
+
+.btn-auto{
+    background:#f8fafc;
+
+    color:#475569;
+
+    border:1.5px solid #e2e8f0;
+}
+
+.btn-auto.active{
+    background:var(--primary-light);
+
+    color:var(--primary);
+
+    border-color:#c5c9f6;
+}
+
+.dot-indicator{
+    width:7px;
+    height:7px;
+
+    border-radius:50%;
+
+    background:#c5c9d6;
+}
+
+.btn-auto.active .dot-indicator{
+    background:var(--primary);
+}
+
+/* Progress */
+
+.progress-section{
+    margin-top:18px;
+}
+
+.progress-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    margin-bottom:8px;
+}
+
+.progress-label{
+    font-size:.8rem;
+    font-weight:600;
+
+    color:var(--text-secondary);
+
+    text-transform:uppercase;
+}
+
+.progress-pct{
+    font-size:.85rem;
+    font-weight:700;
+
+    color:var(--primary);
+
+    font-family:var(--font-mono);
+}
+
+.progress-bar-bg{
+    background:#e8ecf1;
+
+    border-radius:20px;
+
+    height:8px;
+
+    overflow:hidden;
+}
+
+.progress-bar-fill{
+    background:
+        linear-gradient(
+            90deg,
+            #5b5fef 0%,
+            #7c7ff6 100%
+        );
+
+    height:100%;
+
+    width:0%;
+
+    border-radius:20px;
+
+    transition:width .35s ease;
+}
+
+.progress-bar-fill.complete{
+    background:
+        linear-gradient(
+            90deg,
+            #22c55e 0%,
+            #4ade80 100%
+        );
+}
+
+.stats{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    margin-top:8px;
+
+    gap:12px;
+
+    font-size:.82rem;
+
+    color:var(--text-secondary);
+}
+
+.stat-item{
+    display:flex;
+    align-items:center;
+    gap:5px;
+
+    font-family:var(--font-mono);
+}
+
+.stat-dot{
+    width:6px;
+    height:6px;
+
+    border-radius:50%;
+
+    background:#22c55e;
+}
+
+.stat-dot.idle{
+    background:#c5c9d6;
+}
+
+/* Completion */
+
+.completion-banner{
+    display:none;
+
+    align-items:center;
+    gap:10px;
+
+    padding:12px 18px;
+
+    border-radius:var(--radius);
+
+    background:#f0fdf4;
+
+    border:1px solid #bbf7d0;
+
+    color:#16a34a;
+
+    font-weight:600;
+
+    font-size:.9rem;
+
+    margin-top:12px;
+}
+
+.completion-banner.show{
+    display:flex;
+}
+
+/* Log */
+
+.log-card-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    margin-bottom:14px;
+}
+
+.log-card-title{
+    font-weight:700;
+
+    font-size:.95rem;
+
+    color:#334155;
+
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+#logStatus{
+    font-size:.76rem;
+
+    color:var(--text-muted);
+
+    font-weight:500;
+
+    padding:4px 12px;
+
+    border-radius:20px;
+
+    background:#f8fafc;
+
+    border:1px solid #e8ecf1;
+}
+
+#logStatus.done{
+    color:#16a34a;
+    background:#f0fdf4;
+}
+
+#logStatus.error{
+    color:#dc2626;
+    background:#fef2f2;
+}
+
+#logStatus.active{
+    color:var(--primary);
+    background:var(--primary-light);
+}
+
+#logBox{
+    background:#0d1117;
+
+    color:#c9d1d9;
+
+    padding:18px;
+
+    border-radius:var(--radius);
+
+    height:270px;
+
+    overflow-y:auto;
+
+    font-family:var(--font-mono);
+
+    font-size:.78rem;
+
+    line-height:1.7;
+
+    white-space:pre-wrap;
+
+    word-break:break-word;
+}
+
+.log-line-success{
+    color:#7ee787;
+}
+
+.log-line-error{
+    color:#ffa198;
+}
+
+.log-line-info{
+    color:#a5d6ff;
+}
+
+.log-line-warn{
+    color:#f0c062;
+}
+
+/* Footer */
+
+.footer{
+    text-align:center;
+
+    font-size:.82rem;
+
+    color:var(--text-muted);
+}
+
+.footer strong{
+    color:var(--text-secondary);
+}
+
+.footer-dot{
+    display:inline-block;
+
+    width:5px;
+    height:5px;
+
+    border-radius:50%;
+
+    background:#c5c9d6;
+
+    margin:0 8px;
+}
+
+/* Mobile */
+
+@media (max-width:600px){
+
+    body{
+        padding:16px 10px 28px;
+    }
+
+    .container{
+        gap:14px;
+    }
+
+    .card{
+        padding:20px 16px;
+    }
+
+    .upload-area{
+        padding:34px 18px;
+
+        min-height:220px;
+
+        gap:10px;
+    }
+
+    .upload-text{
+        font-size:1rem;
+        line-height:1.55;
+    }
+
+    .upload-hint{
+        font-size:.84rem;
+        line-height:1.7;
+    }
+
+    .upload-badge{
+        font-size:.72rem;
+        padding:7px 12px;
+    }
+
+    .upload-icon-wrap{
+        width:52px;
+        height:52px;
+
+        font-size:1.5rem;
+
+        margin-bottom:2px;
+    }
+
+    .header-icon{
+        width:40px;
+        height:40px;
+
+        font-size:1.3rem;
+    }
+
+    .header-info h1{
+        font-size:1.3rem;
+    }
+
+    button{
+        padding:10px 16px;
+        font-size:.86rem;
+    }
+
+    .btn-upload{
+        min-width:100%;
+    }
+
+    #logBox{
+        height:200px;
+        font-size:.72rem;
+        padding:14px;
+    }
+
+    .stats{
+        flex-direction:column;
+        align-items:flex-start;
+        gap:4px;
+    }
+}
+
+@media (max-width:380px){
+
+    .btn-group{
+        flex-direction:column;
+    }
+
+    .btn-stop,
+    .btn-auto{
+        width:100%;
+    }
+
+    .upload-area{
+        padding:26px 14px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <div class="header-icon">📷</div>
+
+        <div class="header-info">
+            <h1>Photo Upload</h1>
+            <span>批量上传 · 自动处理</span>
+        </div>
+    </div>
+
+    <!-- Main Card -->
+
+    <div class="card">
+
+        <label class="upload-area" id="uploadArea">
+
+            <div class="upload-icon-wrap">
+                ⇧
+            </div>
+
+            <div class="upload-text">
+                点击或拖拽文件到此处
+            </div>
+
+            <div class="upload-hint">
+                支持 JPG · PNG · GIF · WEBP · ZIP
+            </div>
+
+            <div class="upload-badge">
+                📁 可多选
+                <span>·</span>
+                拖拽也行
+            </div>
+
+            <input
+                type="file"
+                id="fileInput"
+                multiple
+                accept="image/*,.zip"
+            />
+
+        </label>
+
+        <!-- File List -->
+
+        <div class="file-list" id="fileList"></div>
+
+        <!-- Buttons -->
+
+        <div class="btn-group">
+
+            <button
+                class="btn-upload"
+                onclick="startUpload()"
+            >
+                ⬆ 开始上传
+            </button>
+
+            <button
+                class="btn-stop"
+                onclick="shutdownServer()"
+            >
+                ⏹ 停止服务
+            </button>
+
+            <button
+                class="btn-auto"
+                id="autoBtn"
+                onclick="toggleAuto()"
+            >
+                <span class="dot-indicator"></span>
+                自动日志
+            </button>
+
+        </div>
+
+        <!-- Progress -->
+
+        <div
+            class="progress-section"
+            id="progressSection"
+            style="display:none;"
+        >
+
+            <div class="progress-header">
+                <span class="progress-label">
+                    上传进度
+                </span>
+
+                <span
+                    class="progress-pct"
+                    id="progressPct"
+                >
+                    0%
+                </span>
+            </div>
+
+            <div class="progress-bar-bg">
+                <div
+                    class="progress-bar-fill"
+                    id="progressBar"
+                ></div>
+            </div>
+
+            <div class="stats">
+
+                <span class="stat-item">
+
+                    <span
+                        class="stat-dot idle"
+                        id="statDot"
+                    ></span>
+
+                    <span id="taskCounter">
+                        0/0
+                    </span>
+
+                </span>
+
+                <span
+                    class="stat-item"
+                    id="uploadSpeed"
+                >
+                    —
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- Completion -->
+
+        <div
+            class="completion-banner"
+            id="completionBanner"
+        >
+            🎉 所有文件上传成功，可以点击「停止服务」
+        </div>
+
+    </div>
+
+    <!-- Log -->
+
+    <div class="card">
+
+        <div class="log-card-header">
+
+            <span class="log-card-title">
+                📃 日志
+            </span>
+
+            <span id="logStatus">
+                就绪
+            </span>
+
+        </div>
+
+        <pre id="logBox"></pre>
+
+    </div>
+
+    <!-- Footer -->
+
+    <div class="footer">
+        上传完成后点击
+        <strong>停止服务</strong>
+
+        <span class="footer-dot"></span>
+
+        系统将自动处理并提交到仓库
+    </div>
+
+</div>
+
+<script>
+
+(function(){
+
+    let auto = false;
+    let timer;
+
+    let totalFiles = 0;
+    let finishedFiles = 0;
+
+    let startTime = 0;
+
+    const progressSection =
+        document.getElementById('progressSection');
+
+    const progressBar =
+        document.getElementById('progressBar');
+
+    const progressPct =
+        document.getElementById('progressPct');
+
+    const taskCounter =
+        document.getElementById('taskCounter');
+
+    const uploadSpeed =
+        document.getElementById('uploadSpeed');
+
+    const statDot =
+        document.getElementById('statDot');
+
+    const logStatus =
+        document.getElementById('logStatus');
+
+    const fileInput =
+        document.getElementById('fileInput');
+
+    const fileList =
+        document.getElementById('fileList');
+
+    const completionBanner =
+        document.getElementById('completionBanner');
+
+    const uploadArea =
+        document.getElementById('uploadArea');
+
+    function formatSize(bytes){
+
+        if(bytes < 1024){
+            return bytes + ' B';
+        }
+
+        if(bytes < 1048576){
+            return (
+                bytes / 1024
+            ).toFixed(1) + ' KB';
+        }
+
+        return (
+            bytes / 1048576
+        ).toFixed(1) + ' MB';
+    }
+
+    function fileIcon(name){
+
+        const ext =
+            name
+            .split('.')
+            .pop()
+            .toLowerCase();
+
+        const map = {
+            jpg:'🖼',
+            jpeg:'🖼',
+            png:'🖼',
+            gif:'🎞',
+            webp:'🖼',
+            zip:'📦'
+        };
+
+        return map[ext] || '📄';
+    }
+
+    function log(msg,type){
+
+        const box =
+            document.getElementById('logBox');
+
+        const className =
+            type === 'success'
+            ? 'log-line-success'
+            : type === 'error'
+            ? 'log-line-error'
+            : type === 'warn'
+            ? 'log-line-warn'
+            : type === 'info'
+            ? 'log-line-info'
+            : '';
+
+        const line =
+            className
+            ? `<span class="${className}">${msg}</span>`
+            : msg;
+
+        box.innerHTML += line + '\n';
+
+        box.scrollTop =
+            box.scrollHeight;
+    }
+
+    log(
+        '📋 准备就绪 — 请选择文件或拖拽到上方区域',
+        'info'
+    );
+
+    function renderFileList(files){
+
+        fileList.innerHTML = '';
+
+        if(!files || !files.length){
+            return;
+        }
+
+        for(const f of files){
+
+            const item =
+                document.createElement('div');
+
+            item.className =
+                'file-item';
+
+            const ext =
+                f.name
+                .split('.')
+                .pop()
+                .toLowerCase();
+
+            item.innerHTML = `
+                <div class="file-item-icon">
+                    ${fileIcon(f.name)}
+                </div>
+
+                <div class="file-item-info">
+
+                    <span class="file-item-name">
+                        ${f.name}
+                    </span>
+
+                    <span class="file-item-size">
+                        ${formatSize(f.size)}
+                    </span>
+
+                </div>
+
+                <span class="file-item-badge">
+                    ${ext}
+                </span>
+            `;
+
+            fileList.appendChild(item);
+        }
+
+        log(
+            '📋 已选择 ' +
+            files.length +
+            ' 个文件',
+            'info'
+        );
+    }
+
+    fileInput.addEventListener(
+        'change',
+        ()=>{
+            renderFileList(fileInput.files);
+        }
+    );
+
+    function updateProgress(){
+
+        const pct =
+            totalFiles > 0
+            ? Math.round(
+                finishedFiles /
+                totalFiles *
+                100
+            )
+            : 0;
+
+        progressBar.style.width =
+            pct + '%';
+
+        progressPct.textContent =
+            pct + '%';
+
+        taskCounter.textContent =
+            finishedFiles +
+            '/' +
+            totalFiles;
+
+        if(
+            totalFiles > 0 &&
+            finishedFiles === totalFiles
+        ){
+
+            progressBar.classList.add(
+                'complete'
+            );
+
+            logStatus.textContent =
+                '全部完成 ✅';
+
+            logStatus.className =
+                'done';
+
+        }else{
+
+            progressBar.classList.remove(
+                'complete'
+            );
+        }
+
+        if(
+            finishedFiles > 0 &&
+            startTime > 0
+        ){
+
+            const elapsed =
+                (
+                    Date.now() -
+                    startTime
+                ) / 1000;
+
+            const speed =
+                (
+                    finishedFiles /
+                    elapsed
+                ).toFixed(2);
+
+            uploadSpeed.textContent =
+                '⚡ ' +
+                speed +
+                ' 个/秒';
+        }
+    }
+
+    uploadArea.addEventListener(
+        'dragover',
+        (e)=>{
+            e.preventDefault();
+            uploadArea.classList.add(
+                'dragover'
+            );
+        }
+    );
+
+    uploadArea.addEventListener(
+        'dragleave',
+        ()=>{
+            uploadArea.classList.remove(
+                'dragover'
+            );
+        }
+    );
+
+    uploadArea.addEventListener(
+        'drop',
+        (e)=>{
+
+            e.preventDefault();
+
+            uploadArea.classList.remove(
+                'dragover'
+            );
+
+            const files =
+                e.dataTransfer.files;
+
+            fileInput.files = files;
+
+            fileInput.dispatchEvent(
+                new Event('change')
+            );
+        }
+    );
+
+    async function startUpload(){
+
+        const files =
+            fileInput.files;
+
+        if(!files.length){
+
+            log(
+                '⚠ 请先选择文件',
+                'warn'
+            );
+
+            return;
+        }
+
+        totalFiles =
+            files.length;
+
+        finishedFiles = 0;
+
+        startTime = Date.now();
+
+        progressSection.style.display =
+            'block';
+
+        completionBanner.classList.remove(
+            'show'
+        );
+
+        updateProgress();
+
+        log(
+            '🚀 开始上传 ' +
+            totalFiles +
+            ' 个文件...',
+            'info'
+        );
+
+        const tasks =
+            Array.from(files)
+            .map(async(f)=>{
+
+                const fd =
+                    new FormData();
+
+                fd.append(
+                    'image',
+                    f
+                );
+
+                try{
+
+                    const resp =
+                        await fetch(
+                            '/upload',
+                            {
+                                method:'POST',
+                                body:fd
+                            }
+                        );
+
+                    const json =
+                        await resp.json();
+
+                    finishedFiles++;
+
+                    updateProgress();
+
+                    if(json.ok){
+
+                        log(
+                            '✔ ' +
+                            f.name,
+                            'success'
+                        );
+
+                    }else{
+
+                        log(
+                            '❌ ' +
+                            f.name,
+                            'error'
+                        );
+                    }
+
+                }catch(e){
+
+                    finishedFiles++;
+
+                    updateProgress();
+
+                    log(
+                        '❌ ' +
+                        f.name +
+                        ' 网络错误',
+                        'error'
+                    );
+                }
+            });
+
+        await Promise.all(tasks);
+
+        completionBanner.classList.add(
+            'show'
+        );
+
+        log(
+            '🎉 所有文件上传成功',
+            'success'
+        );
+    }
+
+    async function shutdownServer(){
+
+        log(
+            '🛑 正在停止服务...',
+            'warn'
+        );
+
+        try{
+
+            const resp =
+                await fetch(
+                    '/shutdown',
+                    {
+                        method:'POST'
+                    }
+                );
+
+            const json =
+                await resp.json();
+
+            log(
+                '✔ 服务已停止: ' +
+                JSON.stringify(json),
+                'success'
+            );
+
+        }catch(e){
+
+            log(
+                '❌ 停止失败',
+                'error'
+            );
+        }
+    }
+
+    function toggleAuto(){
+
+        auto = !auto;
+
+        const btn =
+            document.getElementById(
+                'autoBtn'
+            );
+
+        if(auto){
+
+            btn.classList.add(
+                'active'
+            );
+
+            btn.innerHTML =
+                '<span class="dot-indicator"></span> 自动日志 (开)';
+
+            timer =
+                setInterval(async()=>{
+
+                    try{
+
+                        const r =
+                            await fetch(
+                                '/logs'
+                            );
+
+                        const j =
+                            await r.json();
+
+                        log(
+                            '[AUTO] ' +
+                            JSON.stringify(j),
+                            'info'
+                        );
+
+                    }catch(e){
+
+                        log(
+                            '[AUTO ERR]',
+                            'error'
+                        );
+                    }
+
+                },3000);
+
+        }else{
+
+            btn.classList.remove(
+                'active'
+            );
+
+            btn.innerHTML =
+                '<span class="dot-indicator"></span> 自动日志';
+
+            clearInterval(timer);
+        }
+    }
+
+    window.startUpload =
+        startUpload;
+
+    window.shutdownServer =
+        shutdownServer;
+
+    window.toggleAuto =
+        toggleAuto;
+
+})();
+</script>
+
+</body>
+</html>
                 
                 
                 """
