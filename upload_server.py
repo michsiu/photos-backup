@@ -356,13 +356,18 @@ def index():
         }
 
         // 获取文件最后修改日期 (YYYY-MM-DD)
-        function getFileLastModifiedDate(file) {
-            const d = new Date(file.lastModified);
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        }
+        // 替换原来的 getFileLastModifiedDate 函数
+function getFileLastModifiedDateTime(file) {
+    const d = new Date(file.lastModified);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    // 使用下划线和连字符避免文件名非法字符（冒号不能出现在 Windows 文件名中）
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 
         // 批量处理文件：检测 EXIF，无则重命名，返回新的 File 数组
         async function processFilesWithExif(files) {
@@ -381,7 +386,7 @@ def index():
                     log(`✔ ${file.name} 检测到 EXIF 日期: ${exifDate}，保留原名`, 'success');
                 } else {
                     // 无 EXIF 日期，重命名
-                    const datePrefix = getFileLastModifiedDate(file);
+                    const datePrefix = getFileLastModifiedDateTime(file);
                     const newName = `${datePrefix}==boundary==${file.name}`;
                     const renamedFile = new File([file], newName, {
                         type: file.type,
