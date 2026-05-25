@@ -81,7 +81,9 @@ def index():
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Photo Upload</title>
+    <title>Photo Upload with EXIF Rename</title>
+    <!-- EXIF 解析库 -->
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
     <style>
         :root {
             --bg: #f0f2f7;
@@ -96,137 +98,71 @@ def index():
             --text-secondary: #64748b;
             --text-muted: #94a3b8;
             --border: #e8ecf1;
-            --border-hover: #c5c9d6;
             --upload-bg: #f9fafc;
-            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.08);
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 8px 30px rgba(0,0,0,0.06);
             --radius-sm: 10px;
             --radius: 16px;
             --radius-lg: 20px;
             --radius-xl: 24px;
             --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            --transition-spring: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+            --transition: 0.2s;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            padding: 28px 16px 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            -webkit-font-smoothing: antialiased;
-        }
-        .container { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 20px; }
-        .header { display: flex; align-items: center; gap: 14px; padding: 4px 0; }
-        .header-icon {
-            width: 50px; height: 50px; border-radius: var(--radius);
-            background: linear-gradient(135deg, #5b5fef 0%, #7c7ff6 100%);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.6rem; box-shadow: 0 6px 18px rgba(91,95,239,0.22);
-            flex-shrink: 0;
-        }
-        .header-info h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
-        .header-info span { font-size: 0.82rem; color: var(--text-secondary); font-weight: 500; }
-        .card {
-            background: var(--card-bg); border-radius: var(--radius-xl);
-            padding: 28px; box-shadow: var(--shadow-md);
-            border: 1px solid var(--border); transition: box-shadow var(--transition);
-        }
-        .upload-area {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            border: 2px dashed #dde1e9; border-radius: var(--radius-lg);
-            padding: 38px 24px 34px; background: var(--upload-bg);
-            cursor: pointer; transition: all var(--transition-spring);
-            position: relative; overflow: hidden; user-select: none;
-            margin-bottom: 14px; min-height: 150px;
-        }
-        .upload-area.dragover {
-            border-color: var(--primary) !important; background: var(--primary-light) !important;
-            transform: scale(1.012); box-shadow: 0 8px 28px rgba(91,95,239,0.14);
-        }
-        .upload-area input { display: none; }
-        .upload-icon-wrap {
-            width: 56px; height: 56px; border-radius: 50%; background: #eef0ff;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.7rem; margin-bottom: 14px; pointer-events: none;
-        }
-        .upload-text { font-size: 1.1rem; font-weight: 600; color: #334155; pointer-events: none; }
-        .upload-hint { font-size: 0.84rem; color: var(--text-muted); margin-top: 6px; pointer-events: none; }
-        .upload-badge {
-            display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem;
-            color: var(--text-muted); background: #f1f5f9; border-radius: 20px;
-            padding: 5px 12px; margin-top: 10px; pointer-events: none;
-        }
-        .file-list {
-            margin-bottom: 14px; max-height: 170px; overflow-y: auto;
-            display: flex; flex-direction: column; gap: 5px;
-        }
-        .file-list:empty { display: none; }
-        .file-item {
-            display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-            background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.88rem;
-            color: #475569; word-break: break-all; transition: all var(--transition);
-            border: 1px solid transparent; animation: fadeInItem 0.25s ease-out;
-        }
-        @keyframes fadeInItem { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-        .file-item-icon { flex-shrink: 0; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; background: #eef0ff; color: var(--primary); }
-        .file-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-        .file-item-name { font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .file-item-size { font-size: 0.75rem; color: var(--text-muted); }
-        .file-item-badge { flex-shrink: 0; font-size: 0.7rem; padding: 3px 8px; border-radius: 12px; background: #e2e8f0; color: #64748b; font-weight: 500; text-transform: uppercase; }
-        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
-        button {
-            padding: 11px 22px; border: none; border-radius: var(--radius);
-            font-weight: 600; cursor: pointer; font-size: 0.93rem;
-            transition: all var(--transition-spring); display: inline-flex;
-            align-items: center; gap: 7px; white-space: nowrap; letter-spacing: 0.01em;
-        }
-        .btn-upload { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(91,95,239,0.25); flex: 1 1 auto; min-width: 130px; justify-content: center; }
-        .btn-upload:hover { background: var(--primary-hover); transform: translateY(-2px); }
-        .btn-stop { background: #fff; color: var(--danger); border: 1.5px solid #fecaca; flex: 0 0 auto; }
-        .btn-stop:hover { background: var(--danger-light); border-color: var(--danger); transform: translateY(-2px); }
-        .btn-auto { background: #f8fafc; color: #475569; border: 1.5px solid #e2e8f0; flex: 0 0 auto; font-weight: 500; }
-        .btn-auto.active { background: var(--primary-light); color: var(--primary); border-color: #c5c9f6; font-weight: 600; }
-        .btn-auto .dot-indicator { width: 7px; height: 7px; border-radius: 50%; background: #c5c9d6; }
-        .btn-auto.active .dot-indicator { background: var(--primary); animation: blink-dot 1s ease-in-out infinite; }
-        @keyframes blink-dot { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-        .progress-section { margin-top: 18px; display: none; }
-        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .progress-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
-        .progress-pct { font-size: 0.85rem; font-weight: 700; color: var(--primary); font-family: var(--font-mono); }
-        .progress-bar-bg { background: #e8ecf1; border-radius: 20px; height: 8px; overflow: hidden; }
-        .progress-bar-fill { background: linear-gradient(90deg, #5b5fef 0%, #7c7ff6 50%, #5b5fef 100%); background-size: 200% 100%; height: 100%; width: 0%; border-radius: 20px; transition: width 0.4s; }
-        .progress-bar-fill.complete { background: linear-gradient(90deg, #22c55e 0%, #4ade80 50%, #22c55e 100%); background-size: 200% 100%; }
-        .stats { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 0.82rem; color: var(--text-secondary); }
-        .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; display: inline-block; margin-right: 4px; }
-        .stat-dot.idle { background: #c5c9d6; }
-        .completion-banner { display: none; align-items: center; gap: 10px; padding: 12px 18px; border-radius: var(--radius); background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; font-weight: 600; font-size: 0.9rem; margin-top: 12px; }
-        .completion-banner.show { display: flex; }
-        #logBox {
-            background: #0d1117; color: #c9d1d9; padding: 18px; border-radius: var(--radius);
-            height: 270px; overflow-y: auto; font-family: var(--font-mono);
-            font-size: 0.78rem; line-height: 1.7; white-space: pre-wrap; word-break: break-all;
-            border: 1px solid #1a1f2b;
-        }
-        .log-line-success { color: #7ee787; } .log-line-error { color: #ffa198; }
-        .log-line-info { color: #a5d6ff; } .log-line-warn { color: #f0c062; }
-        .log-status { font-size: 0.76rem; padding: 4px 12px; border-radius: 20px; background: #f8fafc; border: 1px solid #e8ecf1; }
-        .log-status.done { color: #16a34a; background: #f0fdf4; border-color: #bbf7d0; }
-        .log-status.error { color: #dc2626; background: #fef2f2; border-color: #fecaca; }
-        .log-status.active { color: var(--primary); background: var(--primary-light); border-color: #dde0ff; }
-        .footer { text-align: center; font-size: 0.82rem; color: var(--text-muted); padding: 4px 0; }
-        @media (max-width: 600px) {
-            body { padding: 16px 10px 28px; }
-            .card { padding: 20px 16px; }
-            .upload-area { padding: 28px 16px 26px; min-height: 120px; }
-            .btn-upload { min-width: 100%; }
-            #logBox { height: 200px; }
-        }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 16px 40px;display:flex;flex-direction:column;align-items:center;-webkit-font-smoothing:antialiased;}
+        .container{width:100%;max-width:680px;display:flex;flex-direction:column;gap:20px;}
+        .header{display:flex;align-items:center;gap:14px;padding:4px 0;}
+        .header-icon{width:50px;height:50px;border-radius:var(--radius);background:linear-gradient(135deg,#5b5fef,#7c7ff6);display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 6px 18px rgba(91,95,239,0.22);flex-shrink:0;}
+        .header-info h1{font-size:1.55rem;font-weight:700;letter-spacing:-0.02em;line-height:1.2;}
+        .header-info span{font-size:0.82rem;color:var(--text-secondary);font-weight:500;}
+        .card{background:var(--card-bg);border-radius:var(--radius-xl);padding:28px;box-shadow:var(--shadow-md);border:1px solid var(--border);transition:box-shadow var(--transition);}
+        .upload-area{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed #dde1e9;border-radius:var(--radius-lg);padding:38px 24px 34px;background:var(--upload-bg);cursor:pointer;transition:all 0.35s;position:relative;overflow:hidden;user-select:none;margin-bottom:14px;min-height:150px;}
+        .upload-area.dragover{border-color:var(--primary)!important;background:var(--primary-light)!important;transform:scale(1.012);box-shadow:0 8px 28px rgba(91,95,239,0.14);}
+        .upload-area input{display:none;}
+        .upload-icon-wrap{width:56px;height:56px;border-radius:50%;background:#eef0ff;display:flex;align-items:center;justify-content:center;font-size:1.7rem;margin-bottom:14px;pointer-events:none;}
+        .upload-text{font-size:1.1rem;font-weight:600;color:#334155;pointer-events:none;}
+        .upload-hint{font-size:0.84rem;color:var(--text-muted);margin-top:6px;pointer-events:none;}
+        .upload-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--text-muted);background:#f1f5f9;border-radius:20px;padding:5px 12px;margin-top:10px;pointer-events:none;}
+        .file-list{margin-bottom:14px;max-height:170px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;}
+        .file-list:empty{display:none;}
+        .file-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f8fafc;border-radius:var(--radius-sm);font-size:0.88rem;color:#475569;word-break:break-all;transition:all var(--transition);border:1px solid transparent;animation:fadeInItem 0.25s ease-out;}
+        @keyframes fadeInItem{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+        .file-item-icon{flex-shrink:0;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;background:#eef0ff;color:var(--primary);}
+        .file-item-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
+        .file-item-name{font-weight:500;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .file-item-size{font-size:0.75rem;color:var(--text-muted);}
+        .file-item-badge{flex-shrink:0;font-size:0.7rem;padding:3px 8px;border-radius:12px;background:#e2e8f0;color:#64748b;font-weight:500;text-transform:uppercase;}
+        .btn-group{display:flex;gap:10px;flex-wrap:wrap;}
+        button{padding:11px 22px;border:none;border-radius:var(--radius);font-weight:600;cursor:pointer;font-size:0.93rem;transition:all 0.35s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;letter-spacing:0.01em;}
+        .btn-upload{background:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(91,95,239,0.25);flex:1 1 auto;min-width:130px;justify-content:center;}
+        .btn-upload:hover{background:var(--primary-hover);transform:translateY(-2px);}
+        .btn-stop{background:#fff;color:var(--danger);border:1.5px solid #fecaca;flex:0 0 auto;}
+        .btn-stop:hover{background:var(--danger-light);border-color:var(--danger);transform:translateY(-2px);}
+        .btn-auto{background:#f8fafc;color:#475569;border:1.5px solid #e2e8f0;flex:0 0 auto;font-weight:500;}
+        .btn-auto.active{background:var(--primary-light);color:var(--primary);border-color:#c5c9f6;font-weight:600;}
+        .btn-auto .dot-indicator{width:7px;height:7px;border-radius:50%;background:#c5c9d6;}
+        .btn-auto.active .dot-indicator{background:var(--primary);animation:blink-dot 1s ease-in-out infinite;}
+        @keyframes blink-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+        .progress-section{margin-top:18px;display:none;}
+        .progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+        .progress-label{font-size:0.8rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;}
+        .progress-pct{font-size:0.85rem;font-weight:700;color:var(--primary);font-family:var(--font-mono);}
+        .progress-bar-bg{background:#e8ecf1;border-radius:20px;height:8px;overflow:hidden;}
+        .progress-bar-fill{background:linear-gradient(90deg,#5b5fef,#7c7ff6,#5b5fef);background-size:200% 100%;height:100%;width:0%;border-radius:20px;transition:width 0.4s;}
+        .progress-bar-fill.complete{background:linear-gradient(90deg,#22c55e,#4ade80,#22c55e);background-size:200% 100%;}
+        .stats{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:0.82rem;color:var(--text-secondary);}
+        .stat-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;margin-right:4px;}
+        .stat-dot.idle{background:#c5c9d6;}
+        .completion-banner{display:none;align-items:center;gap:10px;padding:12px 18px;border-radius:var(--radius);background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;font-weight:600;font-size:0.9rem;margin-top:12px;}
+        .completion-banner.show{display:flex;}
+        #logBox{background:#0d1117;color:#c9d1d9;padding:18px;border-radius:var(--radius);height:270px;overflow-y:auto;font-family:var(--font-mono);font-size:0.78rem;line-height:1.7;white-space:pre-wrap;word-break:break-all;border:1px solid #1a1f2b;}
+        .log-line-success{color:#7ee787;}.log-line-error{color:#ffa198;}.log-line-info{color:#a5d6ff;}.log-line-warn{color:#f0c062;}
+        .log-status{font-size:0.76rem;padding:4px 12px;border-radius:20px;background:#f8fafc;border:1px solid #e8ecf1;}
+        .log-status.done{color:#16a34a;background:#f0fdf4;border-color:#bbf7d0;}
+        .log-status.error{color:#dc2626;background:#fef2f2;border-color:#fecaca;}
+        .log-status.active{color:var(--primary);background:var(--primary-light);border-color:#dde0ff;}
+        .footer{text-align:center;font-size:0.82rem;color:var(--text-muted);padding:4px 0;}
+        @media(max-width:600px){body{padding:16px 10px 28px}.card{padding:20px 16px}.upload-area{padding:28px 16px 26px;min-height:120px}.btn-upload{min-width:100%}#logBox{height:200px}}
     </style>
 </head>
 <body>
@@ -235,7 +171,7 @@ def index():
         <div class="header-icon">📷</div>
         <div class="header-info">
             <h1>Photo Upload</h1>
-            <span>批量上传 · 自动处理</span>
+            <span>批量上传 · EXIF 检测 · 自动重命名</span>
         </div>
     </div>
 
@@ -307,7 +243,6 @@ def index():
         const logBox = document.getElementById('logBox');
         const completionBanner = document.getElementById('completionBanner');
 
-        // 状态变量
         let auto = false;
         let timer = null;
         let totalFiles = 0;
@@ -321,32 +256,23 @@ def index():
             return (bytes / 1048576).toFixed(1) + ' MB';
         }
 
-        // 转义HTML，防止日志注入
         function escapeHtml(str) {
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
         }
 
-        // 日志输出（安全版本）
+        // 日志输出
         function log(msg, type = '') {
-            const typeClass = {
-                success: 'log-line-success',
-                error: 'log-line-error',
-                warn: 'log-line-warn',
-                info: 'log-line-info'
-            }[type] || '';
+            const typeClass = { success: 'log-line-success', error: 'log-line-error', warn: 'log-line-warn', info: 'log-line-info' }[type] || '';
             const prefix = { success: '✔', error: '✖', warn: '⚠', info: 'ℹ' }[type] || '·';
-            // 安全处理消息内容
             const safeMsg = escapeHtml(msg);
-            const line = typeClass
-                ? `<span class="${typeClass}">${prefix} ${safeMsg}</span>`
-                : `${prefix} ${safeMsg}`;
+            const line = typeClass ? `<span class="${typeClass}">${prefix} ${safeMsg}</span>` : `${prefix} ${safeMsg}`;
             logBox.innerHTML += line + '\n';
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // 更新文件列表UI
+        // 更新文件列表UI（仅显示原始文件名）
         function renderFileList(files) {
             fileList.innerHTML = '';
             if (!files || files.length === 0) {
@@ -358,8 +284,7 @@ def index():
                 const ext = f.name.split('.').pop().toLowerCase();
                 const item = document.createElement('div');
                 item.className = 'file-item';
-                // 图标映射
-                const iconMap = { jpg: '🖼', jpeg: '🖼', png: '🖼', gif: '🎞', webp: '🖼', zip: '📦' };
+                const iconMap = { jpg:'🖼', jpeg:'🖼', png:'🖼', gif:'🎞', webp:'🖼', zip:'📦' };
                 const icon = iconMap[ext] || '📄';
                 item.innerHTML = `
                     <div class="file-item-icon">${icon}</div>
@@ -367,8 +292,7 @@ def index():
                         <span class="file-item-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
                         <span class="file-item-size">${formatSize(f.size)}</span>
                     </div>
-                    <span class="file-item-badge">${escapeHtml(ext)}</span>
-                `;
+                    <span class="file-item-badge">${escapeHtml(ext)}</span>`;
                 frag.appendChild(item);
             });
             fileList.appendChild(frag);
@@ -389,25 +313,17 @@ def index():
                 statDot.classList.remove('idle');
             } else {
                 progressBar.classList.remove('complete');
-                if (finishedFiles > 0 && finishedFiles < totalFiles) {
-                    statDot.classList.remove('idle');
-                } else {
-                    statDot.classList.add('idle');
-                }
+                statDot.classList.toggle('idle', finishedFiles === 0);
             }
 
             if (finishedFiles > 0 && startTime > 0) {
                 const elapsed = (Date.now() - startTime) / 1000;
-                if (elapsed > 0.05) {
-                    const speed = (finishedFiles / elapsed).toFixed(2);
-                    uploadSpeed.textContent = `⚡ ${speed} 个/秒`;
-                }
+                if (elapsed > 0.05) uploadSpeed.textContent = `⚡ ${(finishedFiles / elapsed).toFixed(2)} 个/秒`;
             } else if (finishedFiles === 0 && totalFiles === 0) {
                 uploadSpeed.textContent = '—';
             }
 
-            // 状态标签
-            if (totalFiles > 0 && finishedFiles === totalFiles && totalFiles > 0) {
+            if (totalFiles > 0 && finishedFiles === totalFiles) {
                 logStatus.textContent = '全部完成 ✅';
                 logStatus.className = 'log-status done';
             } else if (totalFiles > 0 && finishedFiles > 0) {
@@ -419,17 +335,84 @@ def index():
             }
         }
 
-        // 开始上传
+        // -------------------- EXIF 与重命名逻辑 --------------------
+        // 使用 exif-js 读取 DateTimeOriginal
+        function getExifDateFromFile(file) {
+            return new Promise((resolve) => {
+                if (!file.type.startsWith('image/')) {
+                    resolve(null);
+                    return;
+                }
+                EXIF.getData(file, function() {
+                    const dateTime = EXIF.getTag(this, "DateTimeOriginal");
+                    if (dateTime) {
+                        // 格式: "2023:05:17 14:30:00" -> "2023-05-17T14:30:00"
+                        resolve(dateTime.replace(/:/g, '-').replace(' ', 'T'));
+                    } else {
+                        resolve(null);
+                    }
+                });
+            });
+        }
+
+        // 获取文件最后修改日期 (YYYY-MM-DD)
+        function getFileLastModifiedDate(file) {
+            const d = new Date(file.lastModified);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 批量处理文件：检测 EXIF，无则重命名，返回新的 File 数组
+        async function processFilesWithExif(files) {
+            const processed = [];
+            let renamedCount = 0;
+            for (const file of files) {
+                // ZIP 文件不处理，直接保留
+                if (file.name.toLowerCase().endsWith('.zip')) {
+                    processed.push(file);
+                    continue;
+                }
+                const exifDate = await getExifDateFromFile(file);
+                if (exifDate) {
+                    // 有 EXIF 日期，保持原文件
+                    processed.push(file);
+                    log(`✔ ${file.name} 检测到 EXIF 日期: ${exifDate}，保留原名`, 'success');
+                } else {
+                    // 无 EXIF 日期，重命名
+                    const datePrefix = getFileLastModifiedDate(file);
+                    const newName = `${datePrefix}==boundary==${file.name}`;
+                    const renamedFile = new File([file], newName, {
+                        type: file.type,
+                        lastModified: file.lastModified
+                    });
+                    processed.push(renamedFile);
+                    renamedCount++;
+                    log(`⚠ ${file.name} 无 EXIF 日期 → 重命名为 ${newName}`, 'warn');
+                }
+            }
+            if (renamedCount > 0) {
+                log(`📌 共 ${renamedCount} 个文件因缺少 EXIF 日期被重命名`, 'info');
+            }
+            return processed;
+        }
+
+        // -------------------- 上传逻辑（使用处理后的文件） --------------------
         async function startUpload() {
-            const files = fileInput.files;
-            if (!files || files.length === 0) {
+            const rawFiles = fileInput.files;
+            if (!rawFiles || rawFiles.length === 0) {
                 log('⚠ 请先选择文件', 'warn');
                 uploadArea.style.borderColor = '#fbbf24';
                 setTimeout(() => { uploadArea.style.borderColor = ''; }, 600);
                 return;
             }
 
-            totalFiles = files.length;
+            log('🔍 正在检测照片 EXIF 日期...', 'info');
+            // 核心：处理文件（检测 EXIF + 重命名）
+            const filesToUpload = await processFilesWithExif(rawFiles);
+
+            totalFiles = filesToUpload.length;
             finishedFiles = 0;
             startTime = Date.now();
             progressSection.style.display = 'block';
@@ -439,9 +422,9 @@ def index():
             updateProgress();
             log(`🚀 开始上传 ${totalFiles} 个文件...`, 'info');
 
-            const tasks = Array.from(files).map(async (f) => {
+            const tasks = filesToUpload.map(async (f) => {
                 const fd = new FormData();
-                fd.append('image', f);
+                fd.append('image', f);  // f 可能已被重命名
                 try {
                     const resp = await fetch('/upload', { method: 'POST', body: fd });
                     const json = await resp.json();
@@ -508,9 +491,7 @@ def index():
                         const r = await fetch('/logs');
                         const j = await r.json();
                         log('[AUTO] ' + JSON.stringify(j), 'info');
-                    } catch (e) {
-                        log('[AUTO ERR] ' + e.message, 'error');
-                    }
+                    } catch (e) { log('[AUTO ERR] ' + e.message, 'error'); }
                 }, 3000);
             } else {
                 autoBtn.classList.remove('active');
@@ -527,17 +508,13 @@ def index():
 
         // 事件绑定
         fileInput.addEventListener('change', () => renderFileList(fileInput.files));
-
-        // 拖拽事件
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
         });
         uploadArea.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            if (!uploadArea.contains(e.relatedTarget)) {
-                uploadArea.classList.remove('dragover');
-            }
+            if (!uploadArea.contains(e.relatedTarget)) uploadArea.classList.remove('dragover');
         });
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
@@ -551,14 +528,12 @@ def index():
                 log(`📥 拖拽接收了 ${files.length} 个文件`, 'info');
             }
         });
-
-        // 按钮点击事件（移除了内联onclick）
         btnUpload.addEventListener('click', startUpload);
         btnStop.addEventListener('click', shutdownServer);
         autoBtn.addEventListener('click', toggleAuto);
 
         // 初始日志
-        log('📋 准备就绪 — 请选择文件或拖拽到上方区域', 'info');
+        log('📋 准备就绪 — 请选择文件或拖拽到上方区域（将自动检测 EXIF 并处理重命名）', 'info');
     })();
 </script>
 </body>
