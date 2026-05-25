@@ -366,7 +366,7 @@ function getFileLastModifiedDateTime(file) {
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const seconds = String(d.getSeconds()).padStart(2, '0');
     // 使用下划线和连字符避免文件名非法字符（冒号不能出现在 Windows 文件名中）
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    return `${year}-${month}-${day}T${hours}-${minutes}-${seconds}`;
 }
 
         // 批量处理文件：检测 EXIF，无则重命名，返回新的 File 数组
