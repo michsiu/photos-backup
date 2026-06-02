@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent
 INCOMING_DIR = BASE_DIR / "incoming"          # 图片文件夹，可以修改为其他路径
 JSON_FILE = BASE_DIR / "photos.json"          # 输出 JSON 文件
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp','.png'}
 
 # ---------- 各库日期提取函数 ----------
 def parse_piexif(file_bytes):
