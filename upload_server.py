@@ -597,9 +597,9 @@ def shutdown():
 @app.route('/gallery')
 def gallery():
     print('starrt')
-    return('hello')
+
     subprocess.run(
-            ['python', str(BASE_DIR / 'photo_processor_test.py')],
+            ['python', str(BASE_DIR / 'photos_process_test.py')],
             capture_output=True,
             text=True,
             timeout=60  # 60秒超时
