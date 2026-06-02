@@ -22,15 +22,20 @@ jobs:
             incoming
             process_photos.py
             upload_server.py
-            sparse-checkout-cone-mode: false
+          sparse-checkout-cone-mode: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install flask pillow piexif
+      - name: Install Python dependencies
+        run: pip install flask pillow piexif exifread pillow-heif
+
+      - name: Install ExifTool
+        run: |
+          sudo apt update
+          sudo apt install -y libimage-exiftool-perl
 
       - name: Install ngrok
         run: |
@@ -44,7 +49,7 @@ jobs:
           mkdir -p incoming
 
           # 启动轻量上传服务
-          nohup python upload_server_test.py > server.log 2>&1 &
+          nohup python upload_server.py > server.log 2>&1 &
           echo $! > flask.pid
           sleep 2
 
@@ -54,7 +59,7 @@ jobs:
 
           # 获取公网 URL
           URL=""
-          for i in {1..60}; do
+          for i in $(seq 1 60); do
             URL=$(curl -s http://127.0.0.1:4040/api/tunnels \
               | grep -oE 'https://[a-zA-Z0-9.-]+' | head -n 1)
             if [ -n "$URL" ]; then
