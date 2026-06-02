@@ -6,6 +6,8 @@
     <title>Photo Upload with EXIF Rename</title>
     <!-- EXIF 解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
+    <!-- 新增 exifr 库（IIFE 版本，全局可用） -->
+    <script src="https://unpkg.com/exifr@7.1.3/dist/full.iife.js"></script>
     <style>
         :root {
             --bg: #f0f2f7;
@@ -194,7 +196,7 @@
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // 更新文件列表UI（仅显示原始文件名）
+        // 更新文件列表UI
         function renderFileList(files) {
             fileList.innerHTML = '';
             if (!files || files.length === 0) {
@@ -277,21 +279,51 @@
             });
         }
 
-        // 获取文件最后修改日期 (YYYY-MM-DD)
-        // 替换原来的 getFileLastModifiedDate 函数
-function getFileLastModifiedDateTime(file) {
-    const d = new Date(file.lastModified);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-    // 使用下划线和连字符避免文件名非法字符（冒号不能出现在 Windows 文件名中）
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
+        // 使用 exifr 深度解析，返回带时间的日期字符串（格式：YYYY-MM-DD HH:MM:SS），失败返回null
+        async function getExifDateWithExifr(file) {
+            try {
+                const allData = await exifr.parse(file, {
+                    tiff: true,
+                    xmp: true,
+                    iptc: true,
+                    icc: true,
+                    translateValues: true,
+                    mergeOutput: true
+                });
+                if (!allData) return null;
+                // 优先查找完整日期时间标签
+                const fullTags = ['DateTimeOriginal', 'DateTimeDigitized', 'DateTime', 'CreateDate', 'ModifyDate'];
+                for (const tag of fullTags) {
+                    if (allData[tag] && /^\d{4}[:\/-]\d{2}[:\/-]\d{2} \d{2}:\d{2}:\d{2}/.test(allData[tag])) {
+                        return allData[tag].replace(/^(\d{4})[:\/-](\d{2})[:\/-](\d{2})/, '$1-$2-$3');
+                    }
+                }
+                // 扫描所有字段寻找带时间的日期
+                const dateTimePattern = /^\d{4}[:\/-]\d{2}[:\/-]\d{2} \d{2}:\d{2}:\d{2}/;
+                for (const [key, val] of Object.entries(allData)) {
+                    if (typeof val === 'string' && dateTimePattern.test(val)) {
+                        return val.replace(/^(\d{4})[:\/-](\d{2})[:\/-](\d{2})/, '$1-$2-$3');
+                    }
+                }
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
 
-        // 批量处理文件：检测 EXIF，无则重命名，返回新的 File 数组
+        // 获取文件最后修改日期时间 (YYYY-MM-DD HH:MM:SS)
+        function getFileLastModifiedDateTime(file) {
+            const d = new Date(file.lastModified);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const seconds = String(d.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        // 批量处理文件：检测 EXIF（exif-js → exifr），无日期/无时间则用修改日期重命名
         async function processFilesWithExif(files) {
             const processed = [];
             let renamedCount = 0;
@@ -301,13 +333,28 @@ function getFileLastModifiedDateTime(file) {
                     processed.push(file);
                     continue;
                 }
-                const exifDate = await getExifDateFromFile(file);
-                if (exifDate) {
-                    // 有 EXIF 日期，保持原文件
-                    processed.push(file);
-                    log(`✔ ${file.name} 检测到 EXIF 日期: ${exifDate}，保留原名`, 'success');
+
+                // 先尝试 exif-js
+                let exifDate = await getExifDateFromFile(file);
+                // 若 exif-js 失败，再尝试 exifr
+                if (!exifDate) {
+                    exifDate = await getExifDateWithExifr(file);
+                }
+
+                // 判断是否获得了有效的带时间的日期
+                const hasTime = exifDate && /\d{2}:\d{2}:\d{2}/.test(exifDate);
+                if (exifDate && hasTime) {
+                    // EXIF 日期有效且包含时间，转换为“YYYY-MM-DD HH:MM:SS”作为前缀
+                    const datePrefix = exifDate.replace('T', ' '); // "2023-05-17T14:30:00" -> "2023-05-17 14:30:00"
+                    const newName = `${datePrefix}==boundary==${file.name}`;
+                    const renamedFile = new File([file], newName, {
+                        type: file.type,
+                        lastModified: file.lastModified
+                    });
+                    processed.push(renamedFile);
+                    log(`✔ ${file.name} 检测到 EXIF 日期时间: ${exifDate} → 重命名为 ${newName}`, 'success');
                 } else {
-                    // 无 EXIF 日期，重命名
+                    // 无 EXIF 日期或日期不含时间，使用文件修改日期
                     const datePrefix = getFileLastModifiedDateTime(file);
                     const newName = `${datePrefix}==boundary==${file.name}`;
                     const renamedFile = new File([file], newName, {
@@ -316,11 +363,11 @@ function getFileLastModifiedDateTime(file) {
                     });
                     processed.push(renamedFile);
                     renamedCount++;
-                    log(`⚠ ${file.name} 无 EXIF 日期 → 重命名为 ${newName}`, 'warn');
+                    log(`⚠ ${file.name} 无有效 EXIF 日期时间 → 使用文件修改日期重命名为 ${newName}`, 'warn');
                 }
             }
             if (renamedCount > 0) {
-                log(`📌 共 ${renamedCount} 个文件因缺少 EXIF 日期被重命名`, 'info');
+                log(`📌 共 ${renamedCount} 个文件因缺少 EXIF 日期时间被重命名`, 'info');
             }
             return processed;
         }
@@ -336,7 +383,6 @@ function getFileLastModifiedDateTime(file) {
             }
 
             log('🔍 正在检测照片 EXIF 日期...', 'info');
-            // 核心：处理文件（检测 EXIF + 重命名）
             const filesToUpload = await processFilesWithExif(rawFiles);
 
             totalFiles = filesToUpload.length;
@@ -351,7 +397,7 @@ function getFileLastModifiedDateTime(file) {
 
             const tasks = filesToUpload.map(async (f) => {
                 const fd = new FormData();
-                fd.append('image', f);  // f 可能已被重命名
+                fd.append('image', f);
                 try {
                     const resp = await fetch('/upload', { method: 'POST', body: fd });
                     const json = await resp.json();
