@@ -1,8 +1,8 @@
 import os
 import sys
 import json
-import subprocess
 import struct
+import subprocess
 from pathlib import Path
 from io import BytesIO
 
@@ -32,8 +32,8 @@ if missing:
     sys.exit(1)
 
 if not HAS_HEIF:
-    print("警告: pillow-heif 未安装，HEIC/HEIF 文件可能无法被 Pillow 读取")
-    print("安装命令: pip install pillow-heif")
+    print("⚠️ 警告: pillow-heif 未安装，HEIC/HEIF 文件可能无法被 Pillow 读取")
+    print("   安装命令: pip install pillow-heif")
 
 # ---------- 配置 ----------
 BASE_DIR = Path(__file__).resolve().parent
@@ -41,28 +41,62 @@ INCOMING_DIR = BASE_DIR / "incoming"
 JSON_FILE = BASE_DIR / "photos.json"
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif'}
 
-# ---------- 日期提取函数 ----------
-def parse_piexif(file_bytes):
+# ---------- PNG eXIf 块提取 ----------
+def get_exif_from_png(file_bytes):
+    """从 PNG 的 eXIf 块中提取 EXIF 字典，失败返回 None"""
+    try:
+        pos = 8  # 跳过 PNG 签名
+        while pos < len(file_bytes):
+            if pos + 12 > len(file_bytes):
+                break
+            length = struct.unpack('>I', file_bytes[pos:pos+4])[0]
+            chunk_type = file_bytes[pos+4:pos+8].decode('ascii', errors='ignore')
+            if chunk_type == 'eXIf':
+                exif_bytes = file_bytes[pos+8:pos+8+length]
+                # 使用 piexif 解析二进制 EXIF 数据
+                return piexif.load(exif_bytes)
+            pos += 12 + length
+    except Exception:
+        pass
+    return None
+
+def extract_date_from_exif_dict(exif_dict):
+    """从 piexif 的字典结构中提取日期字符串"""
+    if not exif_dict:
+        return None
+    for ifd_name in ("Exif", "0th"):
+        ifd = exif_dict.get(ifd_name, {})
+        for tag_id in (36867, 36868, 306):  # DateTimeOriginal, DateTimeDigitized, DateTime
+            if tag_id in ifd:
+                val = ifd[tag_id]
+                if isinstance(val, bytes):
+                    return val.decode('utf-8', errors='ignore')
+                return str(val)
+    return None
+
+# ---------- 各库日期提取函数 ----------
+def parse_piexif(file_bytes, is_png=False):
+    """piexif 解析，如果是 PNG 且已有 eXIf 则走特殊路径"""
+    if is_png:
+        exif_dict = get_exif_from_png(file_bytes)
+        if exif_dict:
+            return extract_date_from_exif_dict(exif_dict) or 'x'
+        return 'x'
     try:
         exif_dict = piexif.load(file_bytes)
-        for ifd_name in ("Exif", "0th"):
-            ifd = exif_dict.get(ifd_name, {})
-            for tag_id in (36867, 36868, 306):
-                if tag_id in ifd:
-                    val = ifd[tag_id]
-                    return val.decode('utf-8', errors='ignore') if isinstance(val, bytes) else str(val)
-        return 'x'
+        return extract_date_from_exif_dict(exif_dict) or 'x'
     except:
         return 'x'
 
 def parse_pillow(file_bytes, file_path=None):
+    """Pillow 解析，支持 PNG eXIf 和 HEIC"""
+    if file_path and file_path.suffix.lower() == '.png':
+        exif_dict = get_exif_from_png(file_bytes)
+        if exif_dict:
+            return extract_date_from_exif_dict(exif_dict) or 'x'
     try:
-        # HEIC/HEIF 支持：注册 opener（如果可用）
-        if file_path and file_path.suffix.lower() in ('.heic', '.heif'):
-            if HAS_HEIF:
-                register_heif_opener()
-            else:
-                return 'x'  # 无 HEIF 支持则跳过 Pillow
+        if file_path and file_path.suffix.lower() in ('.heic', '.heif') and HAS_HEIF:
+            register_heif_opener()
         img = Image.open(BytesIO(file_bytes))
         exif = img._getexif()
         if exif:
@@ -74,6 +108,7 @@ def parse_pillow(file_bytes, file_path=None):
         return 'x'
 
 def parse_exifread(file_bytes):
+    """exifread 解析，支持 JPEG 和 PNG"""
     try:
         tags = exifread.process_file(BytesIO(file_bytes))
         for key in ('EXIF DateTimeOriginal', 'Image DateTimeOriginal',
@@ -84,36 +119,19 @@ def parse_exifread(file_bytes):
     except:
         return 'x'
 
-def parse_png_text(file_bytes):
-    """从 PNG tEXt/iTXt 块提取创建时间"""
-    try:
-        data = file_bytes
-        pos = 8
-        while pos < len(data):
-            length = struct.unpack('>I', data[pos:pos+4])[0]
-            chunk_type = data[pos+4:pos+8].decode('ascii', errors='ignore')
-            if chunk_type in ('tEXt', 'iTXt'):
-                keyword_end = data.index(0, pos+8, pos+8+length)
-                keyword = data[pos+8:keyword_end].decode('latin-1', errors='ignore')
-                value = data[keyword_end+1:pos+8+length].decode('latin-1', errors='ignore')
-                if 'creation' in keyword.lower() or 'date' in keyword.lower():
-                    return value
-            pos += 12 + length
-    except:
-        pass
-    return None
-
 def parse_exiftool(file_path):
-    """调用系统 exiftool 获取日期（支持所有格式，包括 HEIC）"""
+    """调用系统 ExifTool 获取日期，覆盖所有常见标签"""
     try:
         result = subprocess.run(
-            ['exiftool', '-DateTimeOriginal', '-CreateDate', '-ModifyDate', '-j', str(file_path)],
+            ['exiftool', '-json', str(file_path)],
             capture_output=True, text=True, timeout=10
         )
-        if result.returncode != 0:
-            return 'x'
         data = json.loads(result.stdout)[0]
-        for tag in ('DateTimeOriginal', 'CreateDate', 'ModifyDate'):
+        for tag in ('DateTimeOriginal', 'CreateDate', 'ModifyDate',
+                    'XMP:CreateDate', 'XMP:DateTimeOriginal',
+                    'QuickTime:CreateDate', 'QuickTime:ModifyDate',
+                    'MediaCreateDate', 'MediaModifyDate',
+                    'PNG:CreationTime', 'EXIF:DateTimeOriginal'):
             val = data.get(tag)
             if val and val.strip():
                 return val.strip()
@@ -123,7 +141,7 @@ def parse_exiftool(file_path):
     except:
         return 'x'
 
-# ---------- 主逻辑 ----------
+# ---------- 主处理逻辑 ----------
 def main():
     result = {
         "piexif": {},
@@ -153,25 +171,32 @@ def main():
         with open(file_path, 'rb') as f:
             data = f.read()
 
-        # PNG 特殊处理：先尝试文本块
-        if ext == '.png':
-            png_date = parse_png_text(data)
-            if png_date:
-                # 如果从 PNG 文本块读到了日期，强制填入所有库（因为其他库可能读不到）
-                result["piexif"][fname] = png_date
-                result["Pillow"][fname] = png_date
-                result["exifread"][fname] = png_date
-                result["exiftool"][fname] = png_date
-                continue
+        is_png = (ext == '.png')
 
-        result["piexif"][fname] = parse_piexif(data)
+        # PNG 特殊处理：先尝试 eXIf 块，如果成功则直接填入所有库（避免重复解析）
+        png_exif_date = None
+        if is_png:
+            exif_dict = get_exif_from_png(data)
+            if exif_dict:
+                png_exif_date = extract_date_from_exif_dict(exif_dict)
+
+        if png_exif_date:
+            # 所有库统一填写为 PNG 内嵌的 EXIF 日期
+            result["piexif"][fname] = png_exif_date
+            result["Pillow"][fname] = png_exif_date
+            result["exifread"][fname] = png_exif_date
+            result["exiftool"][fname] = png_exif_date
+            continue
+
+        # 常规处理
+        result["piexif"][fname] = parse_piexif(data, is_png=is_png)
         result["Pillow"][fname] = parse_pillow(data, file_path)
         result["exifread"][fname] = parse_exifread(data)
         result["exiftool"][fname] = parse_exiftool(file_path)
 
     with open(JSON_FILE, 'w', encoding='utf-8') as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
-    print(f"完成，结果保存至 {JSON_FILE}")
+    print(f"✅ 处理完成，结果保存至 {JSON_FILE}")
 
 if __name__ == '__main__':
     main()
