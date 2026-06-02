@@ -1,5 +1,6 @@
 import os
 import zipfile
+import subprocess
 import io
 import tempfile
 import shutil
@@ -595,6 +596,12 @@ def shutdown():
 
 @app.route('/gallery')
 def gallery():
+    subprocess.run(
+            ['python', str(BASE_DIR / 'photo_processor_test.py')],
+            capture_output=True,
+            text=True,
+            timeout=60  # 60秒超时
+        )
     try:
         with open("photos.json", 'r', encoding='utf-8') as f:
             photos = json.load(f)
