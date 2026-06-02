@@ -44,7 +44,7 @@ jobs:
           mkdir -p incoming
 
           # 启动轻量上传服务
-          nohup python upload_server.py > server.log 2>&1 &
+          nohup python upload_server_test.py > server.log 2>&1 &
           echo $! > flask.pid
           sleep 2
 
