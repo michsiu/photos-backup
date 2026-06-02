@@ -20,8 +20,8 @@ jobs:
           sparse-checkout: |
             photos.json
             incoming
-            process_photos.py
-            upload_server.py
+            upload_server_test.py
+            photos_process_test.py
           sparse-checkout-cone-mode: false
 
       - name: Setup Python
@@ -36,9 +36,6 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libimage-exiftool-perl
-
-      - name: Verify ExifTool
-        run: exiftool -ver
 
       - name: Install ngrok
         run: |
