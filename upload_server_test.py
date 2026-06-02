@@ -19,7 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent
 INCOMING_DIR = BASE_DIR / "incoming"
 INCOMING_DIR.mkdir(exist_ok=True)
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.heic', '.webp', '.bmp', '.tiff'}
 ZIP_EXTENSION = '.zip'
 
 def log(msg):
