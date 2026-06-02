@@ -598,7 +598,7 @@ def gallery():
     try:
         with open("photos.json", 'r', encoding='utf-8') as f:
             photos = json.load(f)
-            retun f.read()
+        return jsonify(photos)
     except Exception:
         photos = {}
 
