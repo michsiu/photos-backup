@@ -597,6 +597,7 @@ def shutdown():
 @app.route('/gallery')
 def gallery():
     print('starrt')
+    return('hello')
     subprocess.run(
             ['python', str(BASE_DIR / 'photo_processor_test.py')],
             capture_output=True,
