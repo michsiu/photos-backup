@@ -1,4 +1,4 @@
-name: Photo Upload via Ngrok
+name: Photo Upload via Ngrok Check Image Date
 
 on:
   workflow_dispatch:
