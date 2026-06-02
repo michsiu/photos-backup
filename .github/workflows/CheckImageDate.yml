@@ -22,15 +22,23 @@ jobs:
             incoming
             process_photos.py
             upload_server.py
-            sparse-checkout-cone-mode: false
+          sparse-checkout-cone-mode: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install flask pillow piexif
+      - name: Install Python dependencies
+        run: pip install flask pillow piexif exifread pillow-heif
+
+      - name: Install ExifTool
+        run: |
+          sudo apt update
+          sudo apt install -y libimage-exiftool-perl
+
+      - name: Verify ExifTool
+        run: exiftool -ver
 
       - name: Install ngrok
         run: |
@@ -44,7 +52,7 @@ jobs:
           mkdir -p incoming
 
           # 启动轻量上传服务
-          nohup python upload_server_test.py > server.log 2>&1 &
+          nohup python upload_server.py > server.log 2>&1 &
           echo $! > flask.pid
           sleep 2
 
@@ -85,5 +93,5 @@ jobs:
           if [ -z "$(ls -A incoming/)" ]; then
             echo "No new photos to process."
           else
-            python photos_process_test.py
+            python process_photos.py
           fi
