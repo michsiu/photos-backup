@@ -22,7 +22,9 @@ jobs:
             incoming
             process_photos.py
             upload_server.py
+            templates/upload_interface.html
             sparse-checkout-cone-mode: false
+
 
       - name: Setup Python
         uses: actions/setup-python@v5
