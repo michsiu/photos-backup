@@ -30,7 +30,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install flask pillow piexif
+        run: pip install flask exifread
 
       - name: Install ngrok
         run: |
