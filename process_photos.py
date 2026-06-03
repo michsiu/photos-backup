@@ -20,7 +20,7 @@ FAILED_FILE = BASE_DIR / "failed_task.txt"          # 新增：记录无日期�
 PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic','.bmp', '.tiff'}
 
 # 加载现有数据库
 if JSON_FILE.exists():
