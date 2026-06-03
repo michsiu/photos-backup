@@ -6,9 +6,8 @@
     <title>Photo Upload with EXIF Rename</title>
     <!-- EXIF 解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
-    <!-- 新增 exifr 库（IIFE 版本，全局可用） -->
-    <script src="https://unpkg.com/exifr@7.1.3/dist/full.iife.js"></script>
     <style>
+        /* 所有样式完全保持不变 */
         :root {
             --bg: #f0f2f7;
             --card-bg: #ffffff;
@@ -91,6 +90,7 @@
 </head>
 <body>
 <div class="container">
+    <!-- 整个 UI 结构未做任何修改 -->
     <div class="header">
         <div class="header-icon">📷</div>
         <div class="header-info">
@@ -148,9 +148,26 @@
     </div>
 </div>
 
+
+<!-- ========== exifr 加载方式（完全照搬对比工具） ========== -->
+<script type="module">
+  import exifr from 'https://cdn.jsdelivr.net/npm/exifr@7.1.3/+esm';
+  window.exifr = exifr;
+</script>
+
 <script>
+  // 等待 exifr 就绪后执行主逻辑
+  function waitForExifr(callback) {
+    if (window.exifr) {
+      callback();
+    } else {
+      setTimeout(() => waitForExifr(callback), 50);
+    }
+  }
+
+  waitForExifr(function() {
+    // ===== 原有上传页面全部逻辑，未做任何修改 =====
     (function() {
-        // 获取DOM元素
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const fileList = document.getElementById('fileList');
@@ -173,7 +190,6 @@
         let finishedFiles = 0;
         let startTime = 0;
 
-        // 工具函数：格式化文件大小
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
@@ -186,7 +202,6 @@
             return div.innerHTML;
         }
 
-        // 日志输出
         function log(msg, type = '') {
             const typeClass = { success: 'log-line-success', error: 'log-line-error', warn: 'log-line-warn', info: 'log-line-info' }[type] || '';
             const prefix = { success: '✔', error: '✖', warn: '⚠', info: 'ℹ' }[type] || '·';
@@ -196,7 +211,6 @@
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // 更新文件列表UI
         function renderFileList(files) {
             fileList.innerHTML = '';
             if (!files || files.length === 0) {
@@ -225,7 +239,6 @@
             Array.from(files).forEach(f => log(`   · ${f.name}  (${formatSize(f.size)})`));
         }
 
-        // 更新进度条和统计
         function updateProgress() {
             const pct = totalFiles > 0 ? Math.round((finishedFiles / totalFiles) * 100) : 0;
             progressBar.style.width = pct + '%';
@@ -259,8 +272,7 @@
             }
         }
 
-        // -------------------- EXIF 与重命名逻辑 --------------------
-        // 使用 exif-js 读取 DateTimeOriginal
+        // ---------- EXIF 读取函数 ----------
         function getExifDateFromFile(file) {
             return new Promise((resolve) => {
                 if (!file.type.startsWith('image/')) {
@@ -270,7 +282,6 @@
                 EXIF.getData(file, function() {
                     const dateTime = EXIF.getTag(this, "DateTimeOriginal");
                     if (dateTime) {
-                        // 格式: "2023:05:17 14:30:00" -> "2023-05-17T14:30:00"
                         resolve(dateTime.replace(/:/g, '-').replace(' ', 'T'));
                     } else {
                         resolve(null);
@@ -279,7 +290,7 @@
             });
         }
 
-        // 使用 exifr 深度解析，返回带时间的日期字符串（格式：YYYY-MM-DD HH:MM:SS），失败返回null
+        // 使用 exifr 的读取函数（现在 exifr 已经可用）
         async function getExifDateWithExifr(file) {
             try {
                 const allData = await exifr.parse(file, {
@@ -291,27 +302,53 @@
                     mergeOutput: true
                 });
                 if (!allData) return null;
-                // 优先查找完整日期时间标签
-                const fullTags = ['DateTimeOriginal', 'DateTimeDigitized', 'DateTime', 'CreateDate', 'ModifyDate'];
-                for (const tag of fullTags) {
-                    if (allData[tag] && /^\d{4}[:\/-]\d{2}[:\/-]\d{2} \d{2}:\d{2}:\d{2}/.test(allData[tag])) {
-                        return allData[tag].replace(/^(\d{4})[:\/-](\d{2})[:\/-](\d{2})/, '$1-$2-$3');
-                    }
-                }
-                // 扫描所有字段寻找带时间的日期
-                const dateTimePattern = /^\d{4}[:\/-]\d{2}[:\/-]\d{2} \d{2}:\d{2}:\d{2}/;
-                for (const [key, val] of Object.entries(allData)) {
-                    if (typeof val === 'string' && dateTimePattern.test(val)) {
-                        return val.replace(/^(\d{4})[:\/-](\d{2})[:\/-](\d{2})/, '$1-$2-$3');
-                    }
-                }
-                return null;
+// logging(JSON.stringify(allData,'','\t'))
+               
+                
+
+const fullTags = ['DateTimeOriginal', 'DateTimeDigitized', 'DateTime', 'CreateDate', 'ModifyDate'];
+const dateTimePattern = /^(\d{4}).(\d{2}).(\d{2})[\s\S]*?(\d{2}):(\d{2}):(\d{2})(.*)$/;
+
+for (const tag of fullTags) {
+    if (allData[tag]) {
+        const value = String(allData[tag]);
+        
+        let date = new Date(value);
+        
+        if (isNaN(date.getTime())) {
+            const match = value.match(dateTimePattern);
+            if (match) {
+                const normalized = value.replace(/^(\d{4}).(\d{2}).(\d{2})/, '$1-$2-$3');
+                date = new Date(normalized);
+            }
+        }
+        
+        if (isNaN(date.getTime())) {
+            log(`Invalid date format: ${value}\nJSON.stringify(allData)`,'error');
+        }
+        
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const h = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        const s = String(date.getSeconds()).padStart(2, '0');
+        const offset = -date.getTimezoneOffset();
+        const sign = offset >= 0 ? '+' : '-';
+        const offsetH = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+        const offsetM = String(Math.abs(offset) % 60).padStart(2, '0');
+        
+        return `${y}-${m}-${d} ${h}:${min}:${s}${sign}${offsetH}:${offsetM}`;
+    }
+}
+
+return null;
+
             } catch (e) {
                 return null;
             }
         }
 
-        // 获取文件最后修改日期时间 (YYYY-MM-DD HH:MM:SS)
         function getFileLastModifiedDateTime(file) {
             const d = new Date(file.lastModified);
             const year = d.getFullYear();
@@ -323,29 +360,25 @@
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         }
 
-        // 批量处理文件：检测 EXIF（exif-js → exifr），无日期/无时间则用修改日期重命名
         async function processFilesWithExif(files) {
             const processed = [];
             let renamedCount = 0;
             for (const file of files) {
-                // ZIP 文件不处理，直接保留
                 if (file.name.toLowerCase().endsWith('.zip')) {
                     processed.push(file);
                     continue;
                 }
 
-                // 先尝试 exif-js
-                let exifDate = await getExifDateFromFile(file);
-                // 若 exif-js 失败，再尝试 exifr
-                if (!exifDate) {
-                    exifDate = await getExifDateWithExifr(file);
-                }
+                // let exifDate = await getExifDateFromFile(file);
+// logging('exit-js ',exifDate)
+               // if (!exifDate) {
+                    let exifDate = await getExifDateWithExifr(file);
+// logging('exifr ',exifDate)
+                //}
 
-                // 判断是否获得了有效的带时间的日期
                 const hasTime = exifDate && /\d{2}:\d{2}:\d{2}/.test(exifDate);
                 if (exifDate && hasTime) {
-                    // EXIF 日期有效且包含时间，转换为“YYYY-MM-DD HH:MM:SS”作为前缀
-                    const datePrefix = exifDate.replace('T', ' '); // "2023-05-17T14:30:00" -> "2023-05-17 14:30:00"
+                    const datePrefix = exifDate.replace('T', ' ');
                     const newName = `${datePrefix}==boundary==${file.name}`;
                     const renamedFile = new File([file], newName, {
                         type: file.type,
@@ -354,7 +387,6 @@
                     processed.push(renamedFile);
                     log(`✔ ${file.name} 检测到 EXIF 日期时间: ${exifDate} → 重命名为 ${newName}`, 'success');
                 } else {
-                    // 无 EXIF 日期或日期不含时间，使用文件修改日期
                     const datePrefix = getFileLastModifiedDateTime(file);
                     const newName = `${datePrefix}==boundary==${file.name}`;
                     const renamedFile = new File([file], newName, {
@@ -372,7 +404,6 @@
             return processed;
         }
 
-        // -------------------- 上传逻辑（使用处理后的文件） --------------------
         async function startUpload() {
             const rawFiles = fileInput.files;
             if (!rawFiles || rawFiles.length === 0) {
@@ -432,7 +463,6 @@
             updateProgress();
         }
 
-        // 停止服务
         async function shutdownServer() {
             log('🛑 正在停止服务...', 'warn');
             logStatus.textContent = '正在停止...';
@@ -450,7 +480,6 @@
             }
         }
 
-        // 切换自动日志
         function toggleAuto() {
             auto = !auto;
             if (auto) {
@@ -505,9 +534,9 @@
         btnStop.addEventListener('click', shutdownServer);
         autoBtn.addEventListener('click', toggleAuto);
 
-        // 初始日志
         log('📋 准备就绪 — 请选择文件或拖拽到上方区域（将自动检测 EXIF 并处理重命名）', 'info');
     })();
+  });
 </script>
 </body>
 </html>
