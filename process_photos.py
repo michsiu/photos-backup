@@ -15,12 +15,12 @@ INCOMING_DIR = BASE_DIR / "incoming"
 PHOTO_DIR = BASE_DIR / "photos"
 THUMB_DIR = BASE_DIR / "thumbs"
 JSON_FILE = BASE_DIR / "photos.json"
-FAILED_FILE = BASE_DIR / "failed_task.txt"          # 新增：记录无日期且无boundary的文件
+FAILED_FILE = BASE_DIR / "failed_task.txt"
 
 PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic','.bmp', '.tiff'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
 
 # 加载现有数据库
 if JSON_FILE.exists():
@@ -31,6 +31,10 @@ else:
 
 import threading
 db_lock = threading.Lock()
+
+# MODIFIED: 增加默认本地时区配置（北京时间 UTC+8）
+# 原代码没有此常量，直接在 process_one 内使用 UTC
+LOCAL_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))   # 北京时间
 
 def log(msg):
     print(f"[PROCESS] {msg}", flush=True)
@@ -52,22 +56,24 @@ def get_exif_datetime(image_bytes):
         return None
 
 def parse_date_from_boundary(filename):
-    """从文件名中的 ==boundary== 前提取日期时间"""
+    """从文件名中的 ==boundary== 前提取日期时间，返回带时区的 datetime 或 naive datetime"""
     if "==boundary==" not in filename:
         return None
     date_part = filename.split("==boundary==", 1)[0].strip()
+
     # 尝试带时区的格式
     for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S%Z",
                 "%Y-%m-%d %H:%M:%S%z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M%z"):
         try:
-            return datetime.datetime.strptime(date_part, fmt)
+            return datetime.datetime.strptime(date_part, fmt)   # 可能带 tzinfo
         except ValueError:
             continue
-    # 尝试不带时区的格式，假设为北京时间（UTC+8）
-    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"):
+
+    # 尝试不带时区的格式（naive）
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"):
         try:
-            naive = datetime.datetime.strptime(date_part, fmt)
-            return naive.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=8)))
+            return datetime.datetime.strptime(date_part, fmt)   # naive
         except ValueError:
             continue
     return None
@@ -92,30 +98,38 @@ def process_one(file_path: Path):
 
         sha = hashlib.sha256(data).hexdigest()
 
-        # 如果已存在，跳过
         with db_lock:
             if sha in photos_db:
                 log(f"跳过重复图片: {fname} (SHA 已存在)")
                 file_path.unlink()
                 return True
 
-        # ---------- 日期获取（优先 EXIF，其次 boundary，否则记录失败并回退到当前时间） ----------
-        dt_utc = None
+        # ========== 日期获取（修改为保留本地时区） ==========
+        dt_with_tz = None
+
+        # 1) 尝试 EXIF 日期（naive） -> 附加默认本地时区
         exif_dt = get_exif_datetime(data)
         if exif_dt is not None:
-            dt_utc = exif_dt.replace(tzinfo=datetime.timezone.utc)
+            # MODIFIED: 原代码为 dt_utc = exif_dt.replace(tzinfo=datetime.timezone.utc)
+            dt_with_tz = exif_dt.replace(tzinfo=LOCAL_TIMEZONE)
         else:
+            # 2) 尝试从 boundary 解析（可能带时区）
             boundary_dt = parse_date_from_boundary(fname)
             if boundary_dt is not None:
-                dt_utc = boundary_dt.astimezone(datetime.timezone.utc)
+                if boundary_dt.tzinfo is None:
+                    # MODIFIED: 无时区信息时，赋予默认本地时区（原代码直接视为 UTC）
+                    boundary_dt = boundary_dt.replace(tzinfo=LOCAL_TIMEZONE)
+                dt_with_tz = boundary_dt
             else:
-                # 既无 EXIF 日期，也无 boundary 前缀 → 记录到 failed_task.txt
+                # 3) 既无 EXIF 也无 boundary -> 记录失败并用当前本地时间
                 with open(FAILED_FILE, "a", encoding="utf-8") as fail_f:
                     fail_f.write(f"{fname}\n")
-                dt_utc = datetime.datetime.now(datetime.timezone.utc)
+                # MODIFIED: 原代码使用 datetime.datetime.now(datetime.timezone.utc)
+                dt_with_tz = datetime.datetime.now(LOCAL_TIMEZONE)
 
-        year = str(dt_utc.year)
-        date_iso = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        year = str(dt_with_tz.year)
+        # MODIFIED: 使用 isoformat() 保留时区偏移，而非强制 UTC 的 Z 结尾
+        date_iso = dt_with_tz.isoformat()   # 例如 2026-06-03T12:00:00+08:00
 
         # 目标路径
         photo_rel = f"photos/{year}/{sha}{ext}"
@@ -145,7 +159,7 @@ def process_one(file_path: Path):
             "url": photo_rel,
             "thumbnail": thumb_rel,
             "year": year,
-            "date": date_iso,
+            "date": date_iso,          # 现在为带时区的本地时间字符串
             "sha256": sha
         }
 
