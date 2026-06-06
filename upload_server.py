@@ -107,6 +107,11 @@ def upload():
         log(f"上传错误: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/check")
+def check():
+    return jsonify({"status": "loaded", "ok":True})
+
+
 @app.route("/logs")
 def logs():
     return jsonify({"status": "uploading", "time": __import__('datetime').datetime.utcnow().isoformat()})
